@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: cmm-sistema-integral
+  profiles:
+    # "demo": H2 en archivo local (modo MySQL) + datos de demostración.
+    # "mysql": base MySQL real (ver docker-compose.yml y README).
+    default: demo
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate          # el esquema lo maneja Flyway, nunca Hibernate
+    properties:
+      hibernate:
+        jdbc.time_zone: America/Argentina/Mendoza
+  web:
+    locale: es_AR
+    locale-resolver: fixed
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+  jackson:
+    time-zone: America/Argentina/Mendoza
+    serialization:
+      write-dates-as-timestamps: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    # Cada frente numera sus migraciones en su rango (F1 V100-V199, F2 V200-V299...).
+    # out-of-order permite aplicar una V105 aunque ya exista una V400.
+    out-of-order: true
+  mail:
+    # Si no se configura un host SMTP, las notificaciones se registran en la base
+    # y se ven en pantalla, pero no se envían.
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+
+app:
+  uploads-dir: ${UPLOADS_DIR:./data/uploads}
+  mail-remitente: ${MAIL_REMITENTE:cobranzas@cmm.org.ar}
+  zona-horaria: America/Argentina/Mendoza
+
+springdoc:
+  swagger-ui:
+    path: /api-docs.html
+  api-docs:
+    path: /v3/api-docs
+
+---
+spring:
+  config:
+    activate:
+      on-profile: demo
+  datasource:
+    url: jdbc:h2:file:./data/cmm-demo;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;NON_KEYWORDS=VALUE,YEAR,MONTH
+    username: sa
+    password:
+  flyway:
+    locations: classpath:db/migration,classpath:db/demo
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:cmm}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Argentina/Mendoza&characterEncoding=UTF-8
+    username: ${DB_USER:cmm}
+    password: ${DB_PASSWORD:cmm}
+  flyway:
+    # Para cargar también los datos de demostración en MySQL:
+    # FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration}

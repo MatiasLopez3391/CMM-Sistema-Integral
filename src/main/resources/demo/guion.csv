@@ -1,0 +1,15 @@
+# Guion de la carga de demostración: se ejecuta con los servicios reales, en orden.
+# accion;parametro1;parametro2
+GENERAR;202609;2026-09-01
+IMPORTAR;PMC;pmc-2026-09.txt
+IMPORTAR;RAPIPAGO;rapipago-2026-09.csv
+CAJA;2026-09
+GENERAR;202610;2026-10-01
+IMPORTAR;PMC;pmc-2026-10.txt
+IMPORTAR;RAPIPAGO;rapipago-2026-10.csv
+CAJA;2026-10
+GENERAR;202611;2026-11-01
+IMPORTAR;PMC;pmc-2026-11.txt
+IMPORTAR;RAPIPAGO;rapipago-2026-11.csv
+CAJA;2026-11
+BLOQUEAR;131090001100;Dos cuotas vencidas impagas

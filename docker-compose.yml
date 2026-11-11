@@ -1,0 +1,23 @@
+# MySQL 8 para desarrollo. Uso:
+#   docker compose up -d
+#   SPRING_PROFILES_ACTIVE=mysql mvn spring-boot:run
+# Para cargar también los datos de demostración en MySQL:
+#   SPRING_PROFILES_ACTIVE=mysql FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo mvn spring-boot:run
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: cmm-mysql
+    environment:
+      MYSQL_DATABASE: cmm
+      MYSQL_USER: cmm
+      MYSQL_PASSWORD: cmm
+      MYSQL_ROOT_PASSWORD: root
+      TZ: America/Argentina/Mendoza
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "3306:3306"
+    volumes:
+      - cmm-mysql-data:/var/lib/mysql
+
+volumes:
+  cmm-mysql-data:
