@@ -1,6 +1,6 @@
 # Procedimiento de rollback (T39 · ENT-05)
 
-**Estado:** borrador. Los pasos para el entorno de desarrollo (Docker) están en la sección 8 y todavía **no se ensayaron**: hay que correrlos y completar el registro de la sección 9. Lo que depende del servidor del CMM figura como **A CONFIRMAR** (sección 2); no se supone nada.
+**Estado:** los pasos para el entorno de desarrollo (Docker, sección 8) se ensayaron el 22/11/2026 con resultado correcto (ver sección 9). Falta repetirlo en la integración (T34) y adaptarlo al servidor del CMM. Lo que depende del servidor del CMM figura como **A CONFIRMAR** (sección 2); no se supone nada.
 
 ## 1. Qué es un rollback en este sistema
 
@@ -140,4 +140,4 @@ Completar cada vez que se ensaye o se ejecute un rollback real.
 
 | Fecha | Entorno | Quién | Resultado de los pasos 0 a 6 | Observaciones |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| 22/11/2026 | PC de desarrollo, Docker, MySQL 8.4 | Matías | Respaldo de 50.585 bytes. Antes y después del rollback: 18 afiliados y versión de datos 953. La tabla de prueba `prueba_rollback` desapareció. La app arrancó sin aplicar migraciones (`Schema cmm is up to date`). | La copia de comprobantes (`data/uploads`) no se verificó: el ensayo no muestra si la carpeta existía. El inicio de sesión posterior no quedó confirmado en la salida. |
