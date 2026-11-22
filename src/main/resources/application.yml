@@ -15,6 +15,11 @@ spring:
   web:
     locale: es_AR
     locale-resolver: fixed
+    resources:
+      cache:
+        cachecontrol:
+          # El navegador siempre revalida la pantalla y los .js: así una actualización no deja una versión vieja en caché.
+          no-cache: true
   servlet:
     multipart:
       max-file-size: 10MB

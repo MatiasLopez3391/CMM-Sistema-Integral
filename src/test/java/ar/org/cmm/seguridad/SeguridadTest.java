@@ -42,6 +42,14 @@ class SeguridadTest {
     }
 
     @Test
+    void laRaizYLosArchivosDelFrontendSonPublicos() throws Exception {
+        mvc.perform(get("/")).andExpect(status().isOk());
+        mvc.perform(get("/js/app.js")).andExpect(status().isOk());
+        mvc.perform(get("/js/vistas/afiliados.js")).andExpect(status().isOk());
+        mvc.perform(get("/css/app.css")).andExpect(status().isOk());
+    }
+
+    @Test
     void claveIncorrectaEsRechazada() throws Exception {
         mvc.perform(post("/api/auth/login").param("usuario", "daniela").param("clave", "mala").with(csrf()))
                 .andExpect(status().isUnauthorized())
