@@ -85,7 +85,7 @@ Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
 mvn test
 ```
 
-Son 21 pruebas:
+Son 22 pruebas:
 
 - lector de archivos de cobranza;
 - importador de planillas;
