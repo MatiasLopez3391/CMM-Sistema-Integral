@@ -212,6 +212,10 @@ keytool -genkeypair -alias cmm -keyalg RSA -keysize 2048 -storetype PKCS12 -keys
 
 y usar ese archivo como `SSL_KEYSTORE`. No usar un certificado de prueba en producción.
 
+## Rollback
+
+Cómo volver a la versión anterior (aplicación, base de datos y comprobantes) si un despliegue sale mal, con el ensayo paso a paso para Docker: [`docs/rollback.md`](docs/rollback.md).
+
 ---
 
 ## 5. Integraciones externas: estado y qué hace falta
