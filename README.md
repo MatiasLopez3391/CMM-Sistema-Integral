@@ -160,7 +160,7 @@ Se cargan con los datos de demo (`db/demo/V952__usuarios_demo.sql` y `V953__perf
 | `silvina` | `silvina2026` | Silvina | **Permiso total** | todos |
 | `gisela` | `gisela2026` | Gisela | **Facturación y Cobranza**: facturación, cobranza y datos del afiliado (consulta y edición) | LIQUIDACIONES |
 | `daniela` | `daniela2026` | Daniela | **Emisora de órdenes**: emisión de órdenes (módulo en construcción), datos del afiliado (consulta y edición) y carga de historia clínica | MESA_ENTRADAS |
-| `ludovico` | `ludovico2026` | Médico Auditor | **Médico auditor**: solo consulta de los datos del paciente (incluida la historia clínica); no edita | MEDICO_AUDITOR |
+| `ludovico` | `ludovico2026` | Médico Auditor | **Médico auditor**: solo consulta de los datos del paciente (incluidas la historia clínica y la pestaña Auditoría); no edita | MEDICO_AUDITOR |
 
 La historia clínica la **ve** cualquier usuario con sesión; solo la **cargan** quienes tienen el rol `MESA_ENTRADAS` (la emisora y el permiso total).
 

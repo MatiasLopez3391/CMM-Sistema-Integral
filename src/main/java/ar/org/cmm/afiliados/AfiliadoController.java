@@ -105,7 +105,7 @@ public class AfiliadoController {
     }
 
     @GetMapping("/afiliados/{id}/auditoria")
-    @RequiereRol({Rol.ADMINISTRACION, Rol.IT})
+    @RequiereRol({Rol.ADMINISTRACION, Rol.IT, Rol.MEDICO_AUDITOR})
     public List<AuditoriaCambio> auditoria(@PathVariable Long id) {
         return auditoria.deEntidad("afiliado", id);
     }

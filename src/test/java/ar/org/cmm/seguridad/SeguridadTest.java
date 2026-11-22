@@ -101,6 +101,9 @@ class SeguridadTest {
         mvc.perform(get("/api/cobertura/planes").session(s)).andExpect(status().isOk());
         mvc.perform(get("/api/afiliados/1/historia-clinica").session(s))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+        // y la pestaña Auditoría (historial de cambios y consultas)
+        mvc.perform(get("/api/afiliados/1/auditoria").session(s))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
         // no puede editar nada
         mvc.perform(post("/api/afiliados").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
         mvc.perform(put("/api/afiliados/1").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
@@ -119,6 +122,8 @@ class SeguridadTest {
         mvc.perform(get("/api/afiliados").session(s)).andExpect(status().isOk());
         mvc.perform(post("/api/afiliados").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
         mvc.perform(post("/api/afiliados/1/bloqueo").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
+        // la pestaña Auditoría no es suya
+        mvc.perform(get("/api/afiliados/1/auditoria").session(s)).andExpect(status().isForbidden());
         // ve la historia clínica pero no la carga
         mvc.perform(get("/api/afiliados/1/historia-clinica").session(s))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));

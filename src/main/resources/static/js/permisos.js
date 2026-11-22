@@ -21,7 +21,7 @@ export const ACCESO_PESTANIAS = {
   cuenta: ['LIQUIDACIONES', 'ADMINISTRACION'],
   pagos: ['LIQUIDACIONES', 'ADMINISTRACION'],
   hc: null, // la ven todos; cargar entradas es otra acción (ver ACCIONES)
-  auditoria: ['ADMINISTRACION', 'IT']
+  auditoria: ['ADMINISTRACION', 'IT', 'MEDICO_AUDITOR']
 };
 
 // Acciones de edición dentro de la ficha del afiliado (el médico auditor solo consulta).
