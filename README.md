@@ -85,7 +85,7 @@ Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
 mvn test
 ```
 
-Son 18 pruebas:
+Son 21 pruebas:
 
 - lector de archivos de cobranza;
 - importador de planillas;
@@ -153,7 +153,7 @@ Al abrir la aplicación se pide **usuario y contraseña**. Arriba a la derecha s
 
 ### Usuarios de demostración
 
-Se cargan con los datos de demo (`db/demo/V952__usuarios_demo.sql`). La contraseña es el usuario seguido del año:
+Se cargan con los datos de demo (`db/demo/V952__usuarios_demo.sql` y `V953__perfiles_usuarios_demo.sql`). La contraseña es el usuario seguido del año:
 
 | Usuario | Contraseña | Nombre | Perfil | Roles internos |
 | --- | --- | --- | --- | --- |
