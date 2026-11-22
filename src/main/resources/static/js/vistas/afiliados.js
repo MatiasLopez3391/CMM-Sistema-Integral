@@ -1,4 +1,5 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCESO_PESTANIAS } from '../permisos.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
 
 let estadoBusqueda = { q: '', estado: 'ACTIVO', planId: '', bloqueado: '', soloTitulares: false, pagina: 0 };
@@ -10,7 +11,8 @@ export async function render(el, params) {
 
 // =====================================================================  LISTADO
 async function renderListado(el) {
-  const planes = await api.get('/api/cobertura/planes');
+  // Planes es de Cobertura (F2) y no lo ven todos los roles: sin permiso, el filtro por plan queda vacío.
+  const planes = await api.get('/api/cobertura/planes').catch(() => []);
   el.innerHTML = html`
     <div class="tarjeta">
       <div class="tarjeta-titulo">
@@ -87,6 +89,7 @@ async function renderFicha(el, id, tab) {
     <div class="tarjeta">
       <div class="tabs" id="tabs">
         ${raw(['datos:Datos', 'grupo:Grupo familiar', 'cuenta:Cuenta corriente', 'pagos:Pagos', 'hc:Historia clínica', 'bloqueos:Bloqueos', 'auditoria:Auditoría']
+          .filter(x => { const roles = ACCESO_PESTANIAS[x.split(':')[0]]; return !roles || tieneRol(roles); })
           .map(x => { const [k, t] = x.split(':'); return `<button data-tab="${k}" class="${k === tab ? 'activo' : ''}">${t}</button>`; }).join(''))}
       </div>
       <div id="contenidoTab"></div>

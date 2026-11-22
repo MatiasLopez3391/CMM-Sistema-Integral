@@ -14,8 +14,8 @@ import java.time.LocalDateTime;
 
 /**
  * Columnas de auditoría comunes (quién y cuándo creó o modificó un registro).
- * El usuario lo provee {@link UsuarioActualProvider}, que hoy devuelve un usuario de sistema
- * y mañana leerá el usuario autenticado por Spring Security.
+ * El usuario lo provee {@link UsuarioActualProvider}: el usuario que inició sesión
+ * o "sistema" si la operación no viene de una sesión.
  */
 @Getter
 @MappedSuperclass

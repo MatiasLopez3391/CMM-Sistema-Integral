@@ -8,7 +8,24 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="layout">
+<div class="login" id="login" hidden>
+  <form class="login-caja" id="formLogin" autocomplete="on">
+    <div class="marca-logo">CM</div>
+    <h2>Sistema Integral CMM</h2>
+    <p class="ayuda">Ingrese con su usuario y contraseña.</p>
+    <div id="loginError" class="cinta error" role="alert" hidden></div>
+    <div class="campo">
+      <label for="loginUsuario">Usuario</label>
+      <input id="loginUsuario" name="usuario" autocomplete="username" maxlength="40" required autofocus>
+    </div>
+    <div class="campo">
+      <label for="loginClave">Contraseña</label>
+      <input id="loginClave" name="clave" type="password" autocomplete="current-password" maxlength="100" required>
+    </div>
+    <button class="btn primario" id="btnIngresar" type="submit">Ingresar</button>
+  </form>
+</div>
+<div class="layout" id="layout" hidden>
   <aside class="sidebar" id="sidebar">
     <div class="marca">
       <div class="marca-logo">CM</div>
@@ -37,10 +54,10 @@
     <header class="barra">
       <button class="btn-menu" id="btnMenu" aria-label="Menú">☰</button>
       <h1 id="titulo">Inicio</h1>
-      <label class="operador" title="El nombre del operador queda registrado en cada operación">
-        Operador
-        <input id="operador" placeholder="Nombre del operador" maxlength="80">
-      </label>
+      <div class="sesion" title="Su nombre queda registrado en cada operación">
+        <span id="sesionNombre"></span>
+        <button class="btn chico" id="btnSalir" type="button">Cerrar sesión</button>
+      </div>
     </header>
     <main id="vista" class="vista"></main>
   </div>
