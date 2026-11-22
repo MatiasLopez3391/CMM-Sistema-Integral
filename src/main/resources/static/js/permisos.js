@@ -20,6 +20,13 @@ export const ACCESO_PESTANIAS = {
   bloqueos: null,
   cuenta: ['LIQUIDACIONES', 'ADMINISTRACION'],
   pagos: ['LIQUIDACIONES', 'ADMINISTRACION'],
-  hc: ['MEDICO_AUDITOR', 'MESA_ENTRADAS'],
+  hc: null, // la ven todos; cargar entradas es otra acción (ver ACCIONES)
   auditoria: ['ADMINISTRACION', 'IT']
+};
+
+// Acciones de edición dentro de la ficha del afiliado (el médico auditor solo consulta).
+export const ACCIONES = {
+  editarAfiliado: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS'], // alta, modificación, integrantes y baja
+  bloquearAfiliado: ['ADMINISTRACION', 'LIQUIDACIONES'],
+  cargarHistoriaClinica: ['MESA_ENTRADAS']
 };

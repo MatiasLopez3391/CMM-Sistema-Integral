@@ -155,12 +155,14 @@ Al abrir la aplicación se pide **usuario y contraseña**. Arriba a la derecha s
 
 Se cargan con los datos de demo (`db/demo/V952__usuarios_demo.sql`). La contraseña es el usuario seguido del año:
 
-| Usuario | Contraseña | Rol |
-| --- | --- | --- |
-| `silvina` (Contadora) | `silvina2026` | LIQUIDACIONES |
-| `daniela` (Afiliaciones) | `daniela2026` | ADMINISTRACION |
-| `gisela` (Facturación y Cobranza) | `gisela2026` | LIQUIDACIONES |
-| `ludovico` (Auditor) | `ludovico2026` | MEDICO_AUDITOR |
+| Usuario | Contraseña | Nombre | Perfil | Roles internos |
+| --- | --- | --- | --- | --- |
+| `silvina` | `silvina2026` | Silvina | **Permiso total** | todos |
+| `gisela` | `gisela2026` | Gisela | **Facturación y Cobranza**: facturación, cobranza y datos del afiliado (consulta y edición) | LIQUIDACIONES |
+| `daniela` | `daniela2026` | Daniela | **Emisora de órdenes**: emisión de órdenes (módulo en construcción), datos del afiliado (consulta y edición) y carga de historia clínica | MESA_ENTRADAS |
+| `ludovico` | `ludovico2026` | Médico Auditor | **Médico auditor**: solo consulta de los datos del paciente (incluida la historia clínica); no edita | MEDICO_AUDITOR |
+
+La historia clínica la **ve** cualquier usuario con sesión; solo la **cargan** quienes tienen el rol `MESA_ENTRADAS` (la emisora y el permiso total).
 
 > Son solo para demostración. En producción **no** se aplica `db/demo`: los usuarios reales los carga el CMM.
 

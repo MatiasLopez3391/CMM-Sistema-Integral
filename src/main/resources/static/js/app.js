@@ -50,12 +50,27 @@ const $login = document.getElementById('login');
 const $layout = document.getElementById('layout');
 const $loginError = document.getElementById('loginError');
 
+// Ojito de la contraseña: alterna entre ocultarla y mostrarla.
+function verClave(ver) {
+  document.getElementById('loginClave').type = ver ? 'text' : 'password';
+  const boton = document.getElementById('btnVerClave');
+  boton.setAttribute('aria-pressed', String(ver));
+  boton.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  boton.title = ver ? 'Ocultar contraseña' : 'Mostrar contraseña';
+  boton.querySelector('.ojo-abierto').hidden = ver;
+  boton.querySelector('.ojo-cerrado').hidden = !ver;
+}
+document.getElementById('btnVerClave').addEventListener('click', () => {
+  verClave(document.getElementById('loginClave').type === 'password');
+});
+
 function mostrarLogin(mensaje) {
   $layout.hidden = true;
   $login.hidden = false;
   $loginError.hidden = !mensaje;
   $loginError.textContent = mensaje || '';
   document.getElementById('formLogin').reset();
+  verClave(false);
   document.getElementById('loginUsuario').focus();
 }
 

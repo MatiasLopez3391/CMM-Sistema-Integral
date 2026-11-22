@@ -1,6 +1,7 @@
 package ar.org.cmm.seguridad;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -20,6 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class SeguridadTest {
+
+    private static final MediaType JSON = MediaType.APPLICATION_JSON;
 
     @Autowired MockMvc mvc;
 
@@ -74,8 +78,8 @@ class SeguridadTest {
         mvc.perform(get("/api/auth/yo").session(sesion))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.usuario").value("daniela"))
-                .andExpect(jsonPath("$.nombre").value("Daniela (Afiliaciones)"))
-                .andExpect(jsonPath("$.roles[0]").value("ADMINISTRACION"));
+                .andExpect(jsonPath("$.nombre").value("Daniela"))
+                .andExpect(jsonPath("$.roles[0]").value("MESA_ENTRADAS"));
     }
 
     @Test
@@ -85,18 +89,65 @@ class SeguridadTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void losRolesDeLasAnotacionesSeHacenCumplir() throws Exception {
-        MockHttpSession auditor = ingresar("ludovico", "ludovico2026");
-        // el auditor no es de Facturación
-        mvc.perform(get("/api/facturacion/periodos").session(auditor)).andExpect(status().isForbidden());
+    // Los cuerpos vacíos ("{}") no crean nada: con permiso la validación responde 400; sin permiso, 403.
+    private static final String VACIO = "{}";
 
-        MockHttpSession liquidaciones = ingresar("gisela", "gisela2026");
-        mvc.perform(get("/api/facturacion/periodos").session(liquidaciones)).andExpect(status().isOk());
-        // Liquidaciones no ve la historia clínica; el auditor sí
-        mvc.perform(get("/api/afiliados/1/historia-clinica").session(liquidaciones)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/afiliados/1/historia-clinica").session(auditor))
+    @Test
+    void medicoAuditorSoloConsulta() throws Exception {
+        MockHttpSession s = ingresar("ludovico", "ludovico2026");
+        mvc.perform(get("/api/auth/yo").session(s)).andExpect(jsonPath("$.nombre").value("Médico Auditor"));
+        // puede consultar datos del afiliado, incluida la historia clínica
+        mvc.perform(get("/api/afiliados").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/cobertura/planes").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/afiliados/1/historia-clinica").session(s))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+        // no puede editar nada
+        mvc.perform(post("/api/afiliados").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        mvc.perform(put("/api/afiliados/1").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/afiliados/1/baja").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/afiliados/1/bloqueo").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/afiliados/1/historia-clinica").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        // ni ver facturación ni cobranza
+        mvc.perform(get("/api/facturacion/periodos").session(s)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/cobranza/caja").session(s)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void facturacionYCobranzaEditaAfiliadosYUsaFacturacion() throws Exception {
+        MockHttpSession s = ingresar("gisela", "gisela2026");
+        mvc.perform(get("/api/facturacion/periodos").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/afiliados").session(s)).andExpect(status().isOk());
+        mvc.perform(post("/api/afiliados").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/afiliados/1/bloqueo").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
+        // ve la historia clínica pero no la carga
+        mvc.perform(get("/api/afiliados/1/historia-clinica").session(s))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+        mvc.perform(post("/api/afiliados/1/historia-clinica").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void emisoraDeOrdenesEditaAfiliadosYCargaHistoriaPeroNoVeFacturacion() throws Exception {
+        MockHttpSession s = ingresar("daniela", "daniela2026");
+        mvc.perform(post("/api/afiliados").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/afiliados/1/historia-clinica").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
+        // lo que necesita el formulario de afiliados
+        mvc.perform(get("/api/cobertura/planes").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/cobertura/derivadoras").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/cobranza/medios").session(s)).andExpect(status().isOk());
+        // pero no facturación ni cobranza
+        mvc.perform(get("/api/facturacion/periodos").session(s)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/cobranza/caja").session(s)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void permisoTotalTieneTodosLosRoles() throws Exception {
+        MockHttpSession s = ingresar("silvina", "silvina2026");
+        mvc.perform(get("/api/auth/yo").session(s))
+                .andExpect(jsonPath("$.nombre").value("Silvina"))
+                .andExpect(jsonPath("$.roles.length()").value(5));
+        mvc.perform(get("/api/facturacion/periodos").session(s)).andExpect(status().isOk());
+        mvc.perform(post("/api/afiliados").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/afiliados/1/historia-clinica").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isBadRequest());
     }
 
     @Test
