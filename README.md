@@ -103,11 +103,12 @@ Son 22 pruebas:
 | Prestadores y coseguro | Valores convenidos con vigencia e historial; importación del Excel del prestador; **simulador de coseguro por plan** | H12 |
 | Derivadoras | Obra social de origen del afiliado (sin facturar aportes) | H11 |
 | Cuotas | Actualización mensual por % **sin pedirla a sistemas**; simulación y generación masiva; recargo por mora automático; resumen de facturación | Dolor principal del relevamiento |
+| Cuotas › Valores de cuota | IPC mensual traído de la API del INDEC o cargado a mano, aplicado a los valores de cuota con confirmación (una vez por mes) | Revisión del 22/11 (T44) |
 | Cuotas › Coseguros | Coseguros pendientes por integrante que se suman solos a la cuota del mes siguiente; carga manual (importe propio o calculado según la cobertura del plan); anulación con motivo; historial por mes de cuota | Revisión con el CMM del 22/11 (T42, T43) |
 | Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
 | Morosos | Listado con deuda y días de atraso, bloqueo manual con motivo, aviso por mail | H4 (regla automática pendiente) |
 | Exportación FEBBO | Asientos de cuotas y pagos a partir de la relación código de servicio → cuenta contable | H10 |
-| Configuración | Parámetros (vencimiento, tasa de recargo) y diseños de archivo de cobranza editables | — |
+| Configuración | Parámetros (vencimiento, tasa de recargo de la tasa activa del BNA), feriados para el vencimiento hábil y diseños de archivo de cobranza editables | Revisión del 22/11 (T45) |
 
 Archivos de ejemplo para probar en vivo (se descargan desde las mismas pantallas, en `static/ejemplos/`):
 
@@ -228,6 +229,8 @@ Cómo volver a la versión anterior (aplicación, base de datos y comprobantes) 
 | Padrón AFIP (validar CUIT y condición ante IVA) | Interfaz `PadronFiscalServicio` lista; la implementación actual responde vacío. | Certificado digital del CMM, autorizar `ws_sr_padron_a13` en AFIP, autenticación WSAA y pruebas en homologación. |
 | Archivo de PagoMisCuentas | Funciona con un **diseño de archivo provisorio** y configurable desde pantalla. | Un archivo real de ejemplo (anonimizado) para ajustar las posiciones en Configuración. |
 | FEBBO | Exporta un CSV provisorio (`nro_asiento;fecha;cuenta;debe;haber;concepto;referencia`). | Diseño de importación de FEBBO y plan de cuentas. Las cuentas actuales dicen "A CONFIRMAR". |
+| IPC del INDEC (actualización de la cuota) | Cuotas › Valores de cuota › "Traer de la API del INDEC" consulta la [API de series de tiempo](https://apis.datos.gob.ar/series/api/series/?ids=145.3_INGNACNAL_DICI_M_15) (índice de nivel general) y calcula la variación mensual. Liquidaciones confirma vigencia y planes antes de aplicarla. URL configurable con `IPC_URL`. | Que el servidor tenga salida a internet hacia `apis.datos.gob.ar`. Sin conexión, el IPC se carga a mano. |
+| Feriados (vencimiento hábil) | Configuración › Feriados: 2026 viene cargado; "Importar desde internet" usa la API de ArgentinaDatos (`FERIADOS_URL`). | Salida a internet hacia `api.argentinadatos.com`, o cargar los feriados a mano (incluidos los provinciales). |
 | Correo (avisos de deuda) | Funciona con cualquier SMTP. Sin `SMTP_HOST` el aviso se registra como `SIN_SMTP` y se puede ver en pantalla. | Servidor o cuenta de correo del CMM. |
 
 Datos marcados **"A CONFIRMAR"** en `V900__catalogos_iniciales.sql`:

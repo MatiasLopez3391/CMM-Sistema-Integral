@@ -141,4 +141,26 @@ public final class FacturacionDtos {
 
     public record ParametroRequest(@NotBlank String valor) {
     }
+
+    // ---------------- Calendario hábil e IPC (T44, T45)
+    public record FeriadoDto(LocalDate fecha, String descripcion, String origen) {
+    }
+
+    public record FeriadoRequest(@NotNull LocalDate fecha, @NotBlank @Size(max = 150) String descripcion) {
+    }
+
+    public record ResultadoImportacionFeriados(int anio, int agregados, int yaExistian) {
+    }
+
+    public record IpcDto(String periodo, BigDecimal variacion, String origen, LocalDate aplicadoVigencia, String usuario) {
+    }
+
+    public record IpcRequest(@NotBlank String periodo, @NotNull @DecimalMin("-50") @DecimalMax("100") BigDecimal variacion) {
+    }
+
+    public record AplicarIpcRequest(@NotNull LocalDate vigenteDesde, List<Long> planIds) {
+    }
+
+    public record ResultadoImportacionIpc(int agregados, int yaExistian, String ultimoPeriodo) {
+    }
 }

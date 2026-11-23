@@ -7,7 +7,12 @@ import ar.org.cmm.contratos.AfiliadoConsulta;
 import ar.org.cmm.contratos.CargoCuotaServicio;
 import ar.org.cmm.contratos.CargoCuotaServicio.CoseguroParaCuota;
 import ar.org.cmm.facturacion.CargoCuotaService;
+import ar.org.cmm.facturacion.FacturacionDtos.AplicarIpcRequest;
 import ar.org.cmm.facturacion.FacturacionDtos.CargoManualRequest;
+import ar.org.cmm.facturacion.FacturacionDtos.IpcRequest;
+import ar.org.cmm.facturacion.FacturacionDtos.ResultadoActualizacion;
+import ar.org.cmm.facturacion.IpcService;
+import ar.org.cmm.facturacion.ValorCuotaService;
 import ar.org.cmm.facturacion.FacturacionDtos.HistorialCosegurosDto;
 import ar.org.cmm.contratos.CoseguroServicio.CalculoCoseguro;
 import ar.org.cmm.contratos.CuentaCorrienteServicio;
@@ -51,6 +56,8 @@ class FlujoFacturacionTest {
     @Autowired CoseguroServicioImpl coseguro;
     @Autowired CargoCuotaServicio cargosContrato;
     @Autowired CargoCuotaService cargos;
+    @Autowired IpcService ipc;
+    @Autowired ValorCuotaService valores;
 
     @Test
     @Order(1)
@@ -103,9 +110,11 @@ class FlujoFacturacionTest {
     @Order(4)
     void aplicaRecargoSobreDeudaVencidaYListaMorosos() {
         ResultadoGeneracion r = generacion.generar("202610", LocalDate.of(2026, 10, 1));
-        // ORTIZ adeuda $82.404 vencidos: recargo 1,40% = $1.153,66
+        // ORTIZ adeuda $82.404 vencidos: recargo con la tasa activa del BNA, 4,20% = $3.460,97
         assertThat(r.comprobantes()).filteredOn(p -> p.nroAfiliado().equals("131090000800")).singleElement()
-                .satisfies(p -> assertThat(p.recargo()).isEqualByComparingTo("1153.66"));
+                .satisfies(p -> assertThat(p.recargo()).isEqualByComparingTo("3460.97"));
+        // El 10/10/2026 es sábado y el lunes 12 es feriado: la cuota de octubre vence el martes 13
+        assertThat(r.fechaVencimiento()).isEqualTo(LocalDate.of(2026, 10, 13));
         List<MorosoDto> morosos = reportes.morosos(LocalDate.of(2026, 10, 5)); // antes del vencimiento de octubre
         assertThat(morosos).extracting(MorosoDto::nroAfiliado).contains("131090000800").doesNotContain("131090000100");
     }
@@ -152,5 +161,22 @@ class FlujoFacturacionTest {
 
         // Ya facturado: no se puede anular (se corrige con nota de crédito)
         assertThatThrownBy(() -> cargosContrato.anularCoseguro("ORD-0001", "error")).hasMessageContaining("nota de crédito");
+    }
+
+    @Test
+    @Order(7)
+    void elIpcCargadoSeAplicaALosValoresDeCuotaUnaSolaVez() {
+        ipc.cargarManual(new IpcRequest("2026-11", new BigDecimal("2.5")));
+        Long plan0104 = afiliados.porNroAfiliado("131090000100").orElseThrow().planId();
+        BigDecimal antes = valores.vigente(plan0104, LocalDate.of(2026, 12, 31)).orElseThrow();
+        ResultadoActualizacion r = ipc.aplicar("202611", new AplicarIpcRequest(LocalDate.of(2027, 1, 1), List.of(plan0104)));
+        assertThat(r.planesActualizados()).isEqualTo(1);
+        assertThat(valores.vigente(plan0104, LocalDate.of(2027, 1, 1)).orElseThrow())
+                .isEqualByComparingTo(antes.multiply(new BigDecimal("1.025")).setScale(2, java.math.RoundingMode.HALF_UP));
+        assertThat(ipc.ultimos()).filteredOn(i -> i.periodo().equals("202611")).singleElement()
+                .satisfies(i -> assertThat(i.aplicadoVigencia()).isEqualTo(LocalDate.of(2027, 1, 1)));
+        assertThatThrownBy(() -> ipc.aplicar("202611", new AplicarIpcRequest(LocalDate.of(2027, 2, 1), null)))
+                .hasMessageContaining("ya se aplicó");
+        assertThatThrownBy(() -> ipc.cargarManual(new IpcRequest("202611", new BigDecimal("3")))).hasMessageContaining("ya se aplicó");
     }
 }

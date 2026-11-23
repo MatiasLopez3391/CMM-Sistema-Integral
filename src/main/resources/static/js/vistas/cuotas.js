@@ -178,8 +178,23 @@ export function enlazarAcciones(cont, cargos, recargar) {
 
 // ---------------------------------------------------------------- Valores de cuota
 async function tabValores(c) {
-  const valores = await api.get('/api/facturacion/valores-cuota');
+  const [valores, ipc] = await Promise.all([api.get('/api/facturacion/valores-cuota'), api.get('/api/facturacion/ipc')]);
   c.innerHTML = html`
+    <div class="tarjeta">
+      <div class="tarjeta-titulo">
+        <h2>IPC mensual (INDEC)</h2>
+        <div class="fila"><button class="btn" id="ipcManual">Cargar a mano</button><button class="btn primario" id="ipcTraer">Traer de la API del INDEC</button></div>
+      </div>
+      <p class="ayuda">La cuota se actualiza por la variación mensual del IPC. El sistema la consulta en la API de series de tiempo del Estado nacional
+      (o se carga a mano) y Liquidaciones confirma la vigencia y los planes antes de aplicarla. Cada mes se aplica una sola vez.</p>
+      ${raw(tabla([
+        { t: 'Mes medido', v: i => fmt.periodo(i.periodo) },
+        { t: 'Variación', cls: 'num', v: i => `<b>${fmt.pct(i.variacion)}</b>` },
+        { t: 'Origen', v: i => i.origen === 'API' ? 'API del INDEC' : `Carga manual <span class="suave">(${esc(i.usuario || '')})</span>` },
+        { t: 'Aplicado', v: i => i.aplicadoVigencia ? `<span class="badge ok">Vigente desde ${fmt.fecha(i.aplicadoVigencia)}</span>` : '<span class="badge aviso">Sin aplicar</span>' },
+        { t: '', cls: 'derecha', v: i => i.aplicadoVigencia ? '' : `<button class="btn chico primario" data-ipc="${i.periodo}">Aplicar a las cuotas</button>` }
+      ], ipc.slice(0, 12), { vacio: 'Todavía no hay valores de IPC. Tráigalos de la API o cárguelos a mano.' }))}
+    </div>
     <div class="tarjeta">
       <div class="tarjeta-titulo">
         <h2>Valor de la cuota por integrante</h2>
@@ -194,6 +209,50 @@ async function tabValores(c) {
         { t: 'Historial', v: v => v.historial.map(h => `<div class="suave">${fmt.fecha(h.vigenteDesde)} · ${fmt.moneda(h.importe)} · ${esc(h.motivo || '')} (${esc(h.usuario || '')})</div>`).join('') }
       ], valores))}
     </div>`;
+  $('#ipcTraer', c).addEventListener('click', e => conBoton(e.target, async () => {
+    try {
+      const r = await api.post('/api/facturacion/ipc/traer');
+      toast(`IPC actualizado: ${r.agregados} mes(es) nuevos; último publicado ${fmt.periodo(r.ultimoPeriodo)}`, 'ok');
+      tabValores(c);
+    } catch (er) { error(er); }
+  }));
+  $('#ipcManual', c).addEventListener('click', () => {
+    const m = modal('Cargar IPC a mano', `
+      <form class="form-grid">
+        <div class="campo"><label>Mes medido *</label><input type="month" name="periodo" required></div>
+        <div class="campo"><label>Variación mensual (%) *</label><input name="variacion" data-tipo="num" placeholder="Ej.: 2,3" required></div>
+      </form>
+      <p class="ayuda">Dato publicado por el INDEC (variación del nivel general respecto del mes anterior).</p>
+      <div class="acciones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ok">Guardar</button></div>`);
+    $('#ok', m.el).addEventListener('click', e => conBoton(e.target, async () => {
+      try { await api.post('/api/facturacion/ipc', datosForm($('form', m.el))); m.cerrar(); toast('IPC guardado', 'ok'); tabValores(c); } catch (er) { error(er); }
+    }));
+  });
+  $$('[data-ipc]', c).forEach(b => b.addEventListener('click', () => {
+    const i = ipc.find(x => x.periodo === b.dataset.ipc);
+    const h = fmt.hoy();
+    let [a, mm] = h.substring(0, 7).split('-').map(Number); mm++; if (mm > 12) { mm = 1; a++; }
+    const vig = `${a}-${String(mm).padStart(2, '0')}-01`;
+    const m = modal(`Aplicar IPC ${fmt.periodo(i.periodo)}: ${fmt.pct(i.variacion)}`, `
+      <form class="form-grid">
+        <div class="campo"><label>Nuevos valores vigentes desde *</label><input type="date" name="vigenteDesde" value="${vig}" required></div>
+      </form>
+      <h3>Planes alcanzados</h3>
+      <div>${valores.map(v => `<label style="display:inline-flex;gap:6px;margin:0 14px 6px 0"><input type="checkbox" class="pl" value="${v.planId}" checked> ${esc(v.planCodigo)}</label>`).join('')}</div>
+      <div class="cinta aviso" style="margin-top:10px">Se crea una nueva vigencia por plan con el valor actual + ${fmt.pct(i.variacion)}. Revise la fecha: las cuotas de ese mes en adelante usan los valores nuevos.</div>
+      <div id="res"></div>
+      <div class="acciones"><button class="btn" data-cerrar>Cerrar</button><button class="btn primario" id="ok">Confirmar y aplicar</button></div>`);
+    $('#ok', m.el).addEventListener('click', e => conBoton(e.target, async () => {
+      try {
+        const d = datosForm($('form', m.el));
+        d.planIds = $$('.pl', m.el).filter(x => x.checked).map(x => Number(x.value));
+        const r = await api.post(`/api/facturacion/ipc/${i.periodo}/aplicar`, d);
+        $('#res', m.el).innerHTML = `<div class="cinta ok">${r.planesActualizados} plan(es) actualizados<br>${r.detalle.map(esc).join('<br>')}</div>`;
+        e.target.remove();
+        tabValores(c);
+      } catch (er) { error(er); }
+    }));
+  }));
   $('#actualizar', c).addEventListener('click', () => {
     const m = modal('Actualizar cuotas por porcentaje', `
       <form class="form-grid">

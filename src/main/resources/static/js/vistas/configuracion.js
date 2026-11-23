@@ -1,9 +1,11 @@
-import { api } from '../api.js';
+import { api, fmt } from '../api.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, cargando, conBoton, opciones } from '../ui.js';
 
 export async function render(el) {
   cargando(el);
-  const [parametros, layouts] = await Promise.all([api.get('/api/facturacion/parametros'), api.get('/api/cobranza/layouts')]);
+  const anio = Number(sessionStorage.getItem('cmm.anioFeriados')) || new Date().getFullYear();
+  const [parametros, layouts, feriados] = await Promise.all([
+    api.get('/api/facturacion/parametros'), api.get('/api/cobranza/layouts'), api.get('/api/facturacion/feriados', { anio })]);
   el.innerHTML = html`
     <div class="tarjeta">
       <h2>Parámetros de facturación</h2>
@@ -15,7 +17,24 @@ export async function render(el) {
         { t: '', cls: 'derecha', v: p => `<button class="btn chico" data-guardar="${esc(p.clave)}">Guardar</button>` }
       ], parametros))}
     </div>
-    <div class="tarjeta">
+    <div class="tarjeta" id="tFeriados">
+      <div class="tarjeta-titulo">
+        <h2>Feriados y días no laborables</h2>
+        <div class="fila">
+          <div class="campo chico"><select id="anioFer">${raw([anio - 1, anio, anio + 1].map(a => `<option ${a === anio ? 'selected' : ''}>${a}</option>`).join(''))}</select></div>
+          <button class="btn" id="ferNuevo">Agregar día</button>
+          <button class="btn primario" id="ferImportar">Importar ${anio} desde internet</button>
+        </div>
+      </div>
+      <p class="ayuda">Si el día de vencimiento de la cuota cae sábado, domingo o en uno de estos días, vence el día hábil siguiente.</p>
+      ${raw(tabla([
+        { t: 'Fecha', v: f => fmt.fecha(f.fecha) + ` <span class="suave">${new Date(f.fecha + 'T12:00').toLocaleDateString('es-AR', { weekday: 'long' })}</span>` },
+        { t: 'Descripción', v: f => esc(f.descripcion) },
+        { t: 'Origen', v: f => ({ INICIAL: 'Calendario oficial', API: 'Importado', MANUAL: 'Carga manual' }[f.origen] || esc(f.origen)) },
+        { t: '', cls: 'derecha', v: f => `<button class="btn chico" data-borrar="${f.fecha}">Quitar</button>` }
+      ], feriados, { vacio: `No hay feriados cargados para ${anio}.` }))}
+    </div>
+    <div class="tarjeta" id="tLayouts">
       <h2>Diseños de archivo de cobranza</h2>
       <p class="ayuda">Posición de cada campo en los archivos que envían los entes de cobro.
       Ancho fijo: posición de carácter (desde 1) y largo. Delimitado: número de columna.</p>
@@ -37,7 +56,29 @@ export async function render(el) {
       toast('Parámetro actualizado', 'ok');
     } catch (e) { error(e); }
   })));
-  $$('tbody tr', el.querySelectorAll('.tarjeta')[1]).forEach(tr => tr.querySelector('button').addEventListener('click', () => editarLayout(layouts[tr.dataset.i], el)));
+  $('#anioFer', el).addEventListener('change', e => { sessionStorage.setItem('cmm.anioFeriados', e.target.value); render(el); });
+  $('#ferImportar', el).addEventListener('click', e => conBoton(e.target, async () => {
+    try {
+      const r = await api.post(`/api/facturacion/feriados/importar?anio=${anio}`);
+      toast(`${r.agregados} día(s) agregados; ${r.yaExistian} ya estaban cargados`, 'ok'); render(el);
+    } catch (er) { error(er); }
+  }));
+  $('#ferNuevo', el).addEventListener('click', () => {
+    const m = modal('Agregar día no hábil', `
+      <form class="form-grid">
+        <div class="campo"><label>Fecha *</label><input type="date" name="fecha" required></div>
+        <div class="campo"><label>Descripción *</label><input name="descripcion" maxlength="150" placeholder="Ej.: Feriado provincial"></div>
+      </form>
+      <div class="acciones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ok">Guardar</button></div>`);
+    $('#ok', m.el).addEventListener('click', ev => conBoton(ev.target, async () => {
+      try { await api.post('/api/facturacion/feriados', datosForm($('form', m.el))); m.cerrar(); toast('Día agregado', 'ok'); render(el); } catch (er) { error(er); }
+    }));
+  });
+  $$('[data-borrar]', el).forEach(b => b.addEventListener('click', () => conBoton(b, async () => {
+    if (!confirm(`¿Quitar el ${fmt.fecha(b.dataset.borrar)} de los días no hábiles?`)) return;
+    try { await api.del(`/api/facturacion/feriados/${b.dataset.borrar}`); toast('Día quitado', 'ok'); render(el); } catch (er) { error(er); }
+  })));
+  $$('tbody tr', $('#tLayouts', el)).forEach(tr => tr.querySelector('button').addEventListener('click', () => editarLayout(layouts[tr.dataset.i], el)));
 }
 
 function editarLayout(l, el) {
