@@ -16,6 +16,7 @@ import java.util.Map;
  * Exportación de asientos contables para FEBBO (ENT-04), sin factura fiscal (H2):
  * <ul>
  *   <li>Cuota emitida: Debe "Deudores por cuotas" / Haber la cuenta de cada código de servicio.</li>
+ *   <li>Nota de débito: igual que una cuota. Nota de crédito: el asiento inverso.</li>
  *   <li>Pago imputado: Debe la cuenta del medio de cobro / Haber "Deudores por cuotas".</li>
  * </ul>
  * Formato PROVISORIO (CSV ';'), hasta que IT entregue el diseño de importación de FEBBO:
@@ -57,13 +58,27 @@ public class ExportacionAsientosService {
                 continue;
             }
             nro++;
-            String concepto = "Cuota " + c.getPeriodo().substring(4) + "/" + c.getPeriodo().substring(0, 4);
-            linea(sb, nro, c.getFechaEmision(), cuentaDeudores, c.getTotal(), BigDecimal.ZERO, concepto, c.getNumero());
-            totalDebe = totalDebe.add(c.getTotal());
+            String concepto = switch (c.getTipo()) {
+                case Comprobante.TIPO_NOTA_CREDITO -> "Nota de crédito " + c.getNumero();
+                case Comprobante.TIPO_NOTA_DEBITO -> "Nota de débito " + c.getNumero();
+                default -> "Cuota " + c.getPeriodo().substring(4) + "/" + c.getPeriodo().substring(0, 4);
+            };
             Map<String, BigDecimal> porCuenta = new LinkedHashMap<>();
             for (ComprobanteItem i : c.getItems()) {
                 porCuenta.merge(i.getCodigoServicio().getCuentaContable().getCodigo(), i.getImporte(), BigDecimal::add);
             }
+            if (c.esNotaCredito()) {
+                // Nota de crédito: asiento inverso (Debe la cuenta del concepto corregido / Haber deudores)
+                for (Map.Entry<String, BigDecimal> e : porCuenta.entrySet()) {
+                    linea(sb, nro, c.getFechaEmision(), e.getKey(), e.getValue(), BigDecimal.ZERO, concepto, c.getNumero());
+                    totalDebe = totalDebe.add(e.getValue());
+                }
+                linea(sb, nro, c.getFechaEmision(), cuentaDeudores, BigDecimal.ZERO, c.getTotal(), concepto, c.getNumero());
+                totalHaber = totalHaber.add(c.getTotal());
+                continue;
+            }
+            linea(sb, nro, c.getFechaEmision(), cuentaDeudores, c.getTotal(), BigDecimal.ZERO, concepto, c.getNumero());
+            totalDebe = totalDebe.add(c.getTotal());
             for (Map.Entry<String, BigDecimal> e : porCuenta.entrySet()) {
                 linea(sb, nro, c.getFechaEmision(), e.getKey(), BigDecimal.ZERO, e.getValue(), concepto, c.getNumero());
                 totalHaber = totalHaber.add(e.getValue());
@@ -84,7 +99,7 @@ public class ExportacionAsientosService {
             totalHaber = totalHaber.add(m.getImporte());
         }
         if (nro == 0) {
-            throw new ReglaNegocioException("No hay cuotas ni pagos entre " + desde.format(FECHA) + " y " + hasta.format(FECHA) + ".");
+            throw new ReglaNegocioException("No hay comprobantes ni pagos entre " + desde.format(FECHA) + " y " + hasta.format(FECHA) + ".");
         }
         auditoria.registrar("asientos", 0L, "EXPORTACION_FEBBO", desde + " a " + hasta + ": " + nro + " asientos");
         String nombre = "asientos-febbo-" + desde + "-a-" + hasta + ".csv";

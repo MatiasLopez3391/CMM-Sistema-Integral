@@ -146,6 +146,8 @@ async function tabCuenta(c, a, titularId) {
     <div class="fila" style="justify-content:space-between;margin-bottom:10px">
       <span class="suave">Movimientos del ${fmt.fecha(ec.desde)} al ${fmt.fecha(ec.hasta)} · Saldo inicial ${fmt.moneda(ec.saldoInicial)}</span>
       <span class="fila">
+        <button class="btn" id="notaCredito">Nota de crédito</button>
+        <button class="btn" id="notaDebito">Nota de débito</button>
         ${raw(a.estado === 'ACTIVO' ? '<button class="btn" id="coseguro">Cargar coseguro</button>' : '')}
         ${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="pagar">Registrar pago en ventanilla</button>' : '')}
       </span>
@@ -160,8 +162,9 @@ async function tabCuenta(c, a, titularId) {
     <h3>Comprobantes</h3>
     ${raw(tabla([
       { t: 'Número', v: x => `<a href="#" data-comp="${x.id}" class="mono">${esc(x.numero)}</a>` },
+      { t: 'Tipo', v: x => ({ CUOTA: 'Cuota', NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito' }[x.tipo] || esc(x.tipo)) },
       { t: 'Período', v: x => fmt.periodo(x.periodo) },
-      { t: 'Vencimiento', v: x => fmt.fecha(x.fechaVencimiento) },
+      { t: 'Vencimiento', v: x => x.tipo === 'NOTA_CREDITO' ? '—' : fmt.fecha(x.fechaVencimiento) },
       { t: 'Total', cls: 'num', v: x => fmt.moneda(x.total) },
       { t: 'Saldo', cls: 'num', v: x => fmt.moneda(x.saldo) },
       { t: 'Estado', v: x => badgeEstado(x.estado) }
@@ -169,7 +172,12 @@ async function tabCuenta(c, a, titularId) {
     <h3>Coseguros</h3>
     <p class="ayuda">Los pendientes se suman a la próxima cuota del grupo, con el nombre del integrante.</p>
     <div id="coseguros"></div>`;
-  $$('[data-comp]', c).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp); }));
+  $$('[data-comp]', c).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp, renderActual); }));
+  ['notaCredito', 'notaDebito'].forEach(id => $(`#${id}`, c)?.addEventListener('click', async () => {
+    const { dialogoNota } = await import('./nota-dialogo.js');
+    dialogoNota({ tipo: id === 'notaCredito' ? 'CREDITO' : 'DEBITO', afiliadoId: titularId, nombre: ec.apellidoNombre,
+      comprobantes: ec.comprobantes, alTerminar: () => renderActual() });
+  }));
   const cargarCoseguros = async () => {
     const { tablaCoseguros, enlazarAcciones } = await import('./cuotas.js');
     const cargos = await api.get(`/api/facturacion/coseguros/afiliado/${titularId}`);
@@ -357,11 +365,13 @@ function dialogoBaja(a) {
   }));
 }
 
-export async function verComprobante(id) {
+export async function verComprobante(id, alCambiar) {
   try {
     const c = await api.get(`/api/facturacion/comprobantes/${id}`);
-    modal(`Comprobante ${c.numero}`, html`
-      <div class="cinta aviso">Comprobante interno de cuota. No válido como factura.</div>
+    const titulo = { CUOTA: 'Comprobante', NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito' }[c.tipo] || 'Comprobante';
+    const m = modal(`${titulo} ${c.numero}`, html`
+      <div class="cinta aviso">${c.tipo === 'CUOTA' ? 'Comprobante interno de cuota.' : titulo + ' interna.'} No válido como factura.</div>
+      ${raw(c.observaciones && c.tipo !== 'CUOTA' ? `<p><b>Motivo:</b> ${esc(c.observaciones)}${c.comprobanteAsociado ? ` · corrige <span class="mono">${esc(c.comprobanteAsociado)}</span>` : ''}</p>` : '')}
       <div class="datos" style="margin-bottom:12px">
         ${raw(dato('Afiliado', c.nroAfiliado + ' ' + c.apellidoNombre))}${raw(dato('Período', fmt.periodo(c.periodo)))}
         ${raw(dato('Emisión', fmt.fecha(c.fechaEmision)))}${raw(dato('Vencimiento', fmt.fecha(c.fechaVencimiento)))}
@@ -375,11 +385,24 @@ export async function verComprobante(id) {
         { t: 'Importe', cls: 'num', v: i => fmt.moneda(i.importe) },
         { t: 'Cuenta', v: i => `<span class="mono suave">${esc(i.cuentaContable)}</span>` }
       ], c.items, { pie: [{}, { v: 'Total' }, {}, {}, { cls: 'num', v: fmt.moneda(c.total) }, {}] }))}
-      <h3>Pagos imputados</h3>
-      ${raw(tabla([{ t: 'Pago', v: i => '#' + i.pagoId }, { t: 'Fecha', v: i => fmt.fecha(i.fecha) }, { t: 'Importe', cls: 'num', v: i => fmt.moneda(i.importe) }],
-        c.imputaciones, { vacio: 'Sin pagos imputados.' }))}
-      <p class="derecha"><b>Saldo: ${fmt.moneda(c.saldo)}</b></p>
-      <div class="acciones"><button class="btn" data-cerrar>Cerrar</button></div>`);
+      ${raw(c.tipo === 'NOTA_CREDITO' ? '' : `<h3>Pagos y créditos aplicados</h3>
+      ${tabla([{ t: 'Origen', v: i => esc(i.origen) }, { t: 'Fecha', v: i => fmt.fecha(i.fecha) }, { t: 'Importe', cls: 'num', v: i => fmt.moneda(i.importe) }],
+        c.imputaciones, { vacio: 'Sin pagos aplicados.' })}`)}
+      ${raw(c.notas.length ? `<h3>Notas emitidas sobre este comprobante</h3>
+      ${tabla([{ t: 'Número', v: n => `<span class="mono">${esc(n.numero)}</span>` },
+        { t: 'Tipo', v: n => n.tipo === 'NOTA_CREDITO' ? 'Crédito' : 'Débito' }, { t: 'Fecha', v: n => fmt.fecha(n.fecha) },
+        { t: 'Motivo', v: n => esc(n.motivo) }, { t: 'Importe', cls: 'num', v: n => fmt.moneda(n.importe) }], c.notas)}` : '')}
+      ${raw(c.tipo === 'NOTA_CREDITO' ? '' : `<p class="derecha"><b>Saldo: ${fmt.moneda(c.saldo)}</b></p>`)}
+      <div class="acciones">
+        ${raw(c.tipo !== 'NOTA_CREDITO' && alCambiar ? '<button class="btn" id="ncSobre">Emitir nota de crédito</button>' : '')}
+        <button class="btn" data-cerrar>Cerrar</button></div>`);
+    $('#ncSobre', m.el)?.addEventListener('click', async () => {
+      const { dialogoNota } = await import('./nota-dialogo.js');
+      m.cerrar();
+      dialogoNota({ tipo: 'CREDITO', afiliadoId: c.afiliadoId, nombre: c.apellidoNombre, comprobanteId: c.id,
+        comprobantes: [{ id: c.id, tipo: c.tipo, numero: c.numero, periodo: c.periodo, total: c.total, saldo: c.saldo, estado: c.estado }],
+        alTerminar: alCambiar });
+    });
   } catch (e) { error(e); }
 }
 

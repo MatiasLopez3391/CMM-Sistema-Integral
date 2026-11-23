@@ -47,6 +47,8 @@ public class GeneracionCuotasService {
     private final AuditoriaService auditoria;
     private final CargoCuotaService cargos;
     private final CalendarioHabilService calendario;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager em;
 
     public GeneracionCuotasService(AfiliadoConsulta afiliados, ValorCuotaService valores, CodigoServicioRepository codigos,
                                    ComprobanteRepository comprobantes, MovimientoCuentaCorrienteRepository movimientos,
@@ -74,6 +76,9 @@ public class GeneracionCuotasService {
 
     @Transactional
     public ResultadoGeneracion generar(String periodo, LocalDate fechaEmision) {
+        // Una sola generación a la vez: bloquea el numerador de cuotas hasta el final de la transacción
+        // (la base ya no impide dos cuotas del mismo período porque las notas comparten la tabla, V303).
+        em.find(ar.org.cmm.comun.Numerador.class, NUMERADOR, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         ResultadoGeneracion r = procesar(periodo, fechaEmision, false);
         auditoria.registrar("comprobante", 0L, "GENERACION_CUOTAS",
                 "Período " + periodo + ": " + r.generados() + " comprobantes, total " + r.totalGeneral()
