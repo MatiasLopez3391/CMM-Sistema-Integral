@@ -63,6 +63,14 @@ app:
   uploads-dir: ${UPLOADS_DIR:./data/uploads}
   mail-remitente: ${MAIL_REMITENTE:cobranzas@cmm.org.ar}
   zona-horaria: America/Argentina/Mendoza
+  # Datos públicos que consulta el sistema (requieren salida a internet desde el servidor).
+  # Si no hay conexión, el IPC y los feriados se cargan a mano desde las pantallas.
+  ipc:
+    # IPC nivel general nacional, base dic-2016 (INDEC), últimos 24 meses
+    url: ${IPC_URL:https://apis.datos.gob.ar/series/api/series/?ids=145.3_INGNACNAL_DICI_M_15&limit=24&sort=desc&format=json}
+  feriados:
+    # {anio} se reemplaza por el año pedido
+    url: ${FERIADOS_URL:https://api.argentinadatos.com/v1/feriados/{anio}}
 
 springdoc:
   swagger-ui:

@@ -82,6 +82,7 @@ export const api = {
   put: (url, body) => fetch(url, {
     method: 'PUT', headers: encabezados({ 'Content-Type': 'application/json' }), body: JSON.stringify(body ?? {})
   }).then(procesar),
+  del: url => fetch(url, { method: 'DELETE', headers: encabezados() }).then(procesar),
   multipart: (url, formData, params) => fetch(conQuery(url, params), {
     method: 'POST', headers: encabezados(), body: formData
   }).then(procesar),

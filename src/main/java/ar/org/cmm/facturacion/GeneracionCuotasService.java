@@ -46,11 +46,13 @@ public class GeneracionCuotasService {
     private final NumeradorService numerador;
     private final AuditoriaService auditoria;
     private final CargoCuotaService cargos;
+    private final CalendarioHabilService calendario;
 
     public GeneracionCuotasService(AfiliadoConsulta afiliados, ValorCuotaService valores, CodigoServicioRepository codigos,
                                    ComprobanteRepository comprobantes, MovimientoCuentaCorrienteRepository movimientos,
                                    CuentaCorrienteServicioImpl cuentaCorriente, ParametroService parametros,
-                                   NumeradorService numerador, AuditoriaService auditoria, CargoCuotaService cargos) {
+                                   NumeradorService numerador, AuditoriaService auditoria, CargoCuotaService cargos,
+                                   CalendarioHabilService calendario) {
         this.afiliados = afiliados;
         this.valores = valores;
         this.codigos = codigos;
@@ -61,6 +63,7 @@ public class GeneracionCuotasService {
         this.numerador = numerador;
         this.auditoria = auditoria;
         this.cargos = cargos;
+        this.calendario = calendario;
     }
 
     /** Calcula sin guardar: permite revisar antes de generar. */
@@ -82,7 +85,8 @@ public class GeneracionCuotasService {
         YearMonth periodo = parsearPeriodo(periodoTxt);
         LocalDate fechaEmision = fechaEmisionParam != null ? fechaEmisionParam : periodo.atDay(1);
         int dia = Math.min(parametros.entero(ParametroService.DIA_VENCIMIENTO), periodo.lengthOfMonth());
-        LocalDate vencimiento = periodo.atDay(dia);
+        // Día configurado o, si es sábado, domingo o feriado, el hábil siguiente (T45)
+        LocalDate vencimiento = calendario.habilDesde(periodo.atDay(dia));
         if (vencimiento.isBefore(fechaEmision)) {
             throw new ReglaNegocioException("La fecha de emisión es posterior al vencimiento del período (" + vencimiento + ").");
         }
