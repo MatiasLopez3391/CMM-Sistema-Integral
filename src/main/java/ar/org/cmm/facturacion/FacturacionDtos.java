@@ -42,14 +42,42 @@ public final class FacturacionDtos {
     }
 
     public record PropuestaComprobante(Long afiliadoId, String nroAfiliado, String apellidoNombre, String planCodigo,
-                                       int integrantes, BigDecimal cuota, BigDecimal adicionales, BigDecimal recargo,
-                                       BigDecimal deudaVencida, BigDecimal total, String observacion) {
+                                       int integrantes, BigDecimal cuota, BigDecimal adicionales, BigDecimal coseguros,
+                                       int cantidadCoseguros, BigDecimal recargo, BigDecimal deudaVencida, BigDecimal total,
+                                       String observacion) {
     }
 
     public record ResultadoGeneracion(String periodo, LocalDate fechaEmision, LocalDate fechaVencimiento, boolean simulacion,
                                       int generados, int omitidosYaExistian, int conRecargo,
-                                      BigDecimal totalCuotas, BigDecimal totalRecargos, BigDecimal totalGeneral,
-                                      List<String> advertencias, List<PropuestaComprobante> comprobantes) {
+                                      BigDecimal totalCuotas, BigDecimal totalCoseguros, BigDecimal totalRecargos,
+                                      BigDecimal totalGeneral, List<String> advertencias, List<PropuestaComprobante> comprobantes) {
+    }
+
+    // ---------------- Coseguros a la cuota (T42, T43)
+    public record CargoCuotaDto(Long id, Long titularId, String titularNro, String titularNombre, Long afiliadoId,
+                                String afiliadoNro, String afiliadoNombre, String tipo, String concepto, LocalDate fecha,
+                                BigDecimal importe, String periodoDestino, String origen, String origenRef, String estado,
+                                Long comprobanteId, String comprobanteNumero, String usuario, String motivoAnulacion) {
+    }
+
+    public record CargoManualRequest(@NotNull Long afiliadoId, @NotNull LocalDate fecha, @NotNull @Positive BigDecimal importe,
+                                     @NotBlank @Size(max = 200) String concepto, String periodoDestino) {
+    }
+
+    public record AnulacionRequest(@NotBlank @Size(max = 200) String motivo) {
+    }
+
+    public record CalculoCoseguroRequest(@NotNull Long afiliadoId, @NotNull Long prestadorId, @NotNull Long practicaId,
+                                         LocalDate fecha) {
+    }
+
+    public record TotalPeriodoCosegurosDto(String periodo, int cantidad, BigDecimal pendiente, BigDecimal facturado,
+                                           BigDecimal anulado) {
+    }
+
+    public record HistorialCosegurosDto(String desde, String hasta, List<CargoCuotaDto> cargos,
+                                        List<TotalPeriodoCosegurosDto> porPeriodo, BigDecimal totalPendiente,
+                                        BigDecimal totalFacturado) {
     }
 
     // ---------------- Comprobantes y cuenta corriente
