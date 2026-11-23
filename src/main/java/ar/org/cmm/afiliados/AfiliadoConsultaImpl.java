@@ -6,7 +6,9 @@ import ar.org.cmm.contratos.AfiliadoConsulta;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -46,6 +48,16 @@ public class AfiliadoConsultaImpl implements AfiliadoConsulta {
         return afiliados.grupoFamiliar(titularId).stream()
                 .filter(a -> a.getEstado() == EstadoAfiliado.ACTIVO)
                 .map(AfiliadoConsultaImpl::resumen).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Long> activosPorDerivadora() {
+        Map<Long, Long> conteo = new HashMap<>();
+        for (Object[] fila : afiliados.contarPorDerivadora(EstadoAfiliado.ACTIVO)) {
+            conteo.put(((Number) fila[0]).longValue(), ((Number) fila[1]).longValue());
+        }
+        return conteo;
     }
 
     static AfiliadoResumen resumen(Afiliado a) {

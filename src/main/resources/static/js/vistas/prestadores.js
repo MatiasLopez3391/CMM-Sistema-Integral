@@ -32,7 +32,7 @@ export async function render(el) {
     <div class="tarjeta">
       <h2>Simulador de coseguro por plan</h2>
       <p class="ayuda">Elegí una práctica para ver cuánto paga la obra social y cuánto el afiliado en cada plan.</p>
-      <div class="fila"><div class="campo"><label>Práctica</label><select id="selPractica"></select></div></div>
+      <div class="fila"><div class="campo"><label>Práctica</label><select id="selPractica"></select></div>${raw(tieneRol(ACCIONES.editarCobertura) ? '<button class="btn" id="editarPractica">Editar práctica</button>' : '')}</div>
       <div id="simulacion" style="margin-top:12px"></div>
     </div>`;
 
@@ -75,7 +75,16 @@ export async function render(el) {
   if (tieneRol(ACCIONES.editarCobertura)) {
     $('#nuevo', el).addEventListener('click', () => editarPrestador(null));
     $('#editarPrestador', el).addEventListener('click', () => editarPrestador(prestadores.find(p => p.id === prestadorSel)));
-    $('#nuevaPractica', el).addEventListener('click', nuevaPractica);
+    const refrescar = () => cargarValores().then(simular);
+    $('#nuevaPractica', el).addEventListener('click', () => editarPractica(null, refrescar));
+    $('#editarPractica', el).addEventListener('click', async () => {
+      try {
+        const id = Number($('#selPractica', el).value);
+        if (!id) throw new Error('Elegí una práctica en el selector.');
+        const p = (await api.get('/api/cobertura/practicas')).find(x => x.id === id);
+        editarPractica(p, refrescar);
+      } catch (er) { error(er); }
+    });
     $('#cargarValor', el).addEventListener('click', () => cargarValor(cargarValores));
     $('#importar', el).addEventListener('click', () => importar(cargarValores));
   }
@@ -105,18 +114,23 @@ function editarPrestador(p) {
   }));
 }
 
-function nuevaPractica() {
-  const m = modal('Nueva práctica', `
+function editarPractica(p, alGuardar) {
+  const m = modal(p ? `Editar práctica ${p.codigoCmm}` : 'Nueva práctica', `
     <form class="form-grid">
-      <div class="campo"><label>Código CMM *</label><input name="codigoCmm" required></div>
-      <div class="campo"><label>Código nomenclador</label><input name="codigoNomenclador"></div>
-      <div class="campo" style="grid-column:1/-1"><label>Descripción *</label><input name="descripcion" required></div>
-      <div class="campo"><label>Rubro *</label><select name="rubro">${opciones(['CONSULTA', 'ENFERMERIA', 'LABORATORIO', 'IMAGENES', 'MEDICAMENTOS', 'INTERNACION', 'ODONTOLOGIA', 'OTROS'].map(v => ({ id: v, nombre: v })), 'CONSULTA')}</select></div>
-      <label class="campo" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="requiereAuditoria"> Requiere auditoría médica</label>
+      <div class="campo"><label>Código CMM *</label><input name="codigoCmm" value="${esc(p?.codigoCmm)}" required></div>
+      <div class="campo"><label>Código nomenclador</label><input name="codigoNomenclador" value="${esc(p?.codigoNomenclador)}"></div>
+      <div class="campo" style="grid-column:1/-1"><label>Descripción *</label><input name="descripcion" value="${esc(p?.descripcion)}" required></div>
+      <div class="campo"><label>Rubro *</label><select name="rubro">${opciones(['CONSULTA', 'ENFERMERIA', 'LABORATORIO', 'IMAGENES', 'MEDICAMENTOS', 'INTERNACION', 'ODONTOLOGIA', 'OTROS'].map(v => ({ id: v, nombre: v })), p?.rubro || 'CONSULTA')}</select></div>
+      <label class="campo" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="requiereAuditoria" ${p?.requiereAuditoria ? 'checked' : ''}> Requiere auditoría médica</label>
     </form>
     <div class="acciones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ok">Guardar</button></div>`);
   $('#ok', m.el).addEventListener('click', e => conBoton(e.target, async () => {
-    try { await api.post('/api/cobertura/practicas', datosForm($('form', m.el))); m.cerrar(); toast('Práctica creada', 'ok'); } catch (er) { error(er); }
+    try {
+      const d = datosForm($('form', m.el));
+      if (p) await api.put(`/api/cobertura/practicas/${p.id}`, d); else await api.post('/api/cobertura/practicas', d);
+      m.cerrar(); toast(p ? 'Práctica modificada' : 'Práctica creada', 'ok');
+      if (alGuardar) alGuardar();
+    } catch (er) { error(er); }
   }));
 }
 

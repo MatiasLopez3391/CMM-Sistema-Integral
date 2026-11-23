@@ -57,6 +57,10 @@ public interface AfiliadoRepository extends JpaRepository<Afiliado, Long> {
         return findByTitularIsNullAndEstadoOrderByNroAfiliadoAsc(EstadoAfiliado.ACTIVO);
     }
 
+    /** Filas [derivadoraId, cantidad] de afiliados en el estado indicado (lo usa el ABM de derivadoras de F2). */
+    @Query("select a.derivadora.id, count(a) from Afiliado a where a.derivadora is not null and a.estado = :estado group by a.derivadora.id")
+    List<Object[]> contarPorDerivadora(@Param("estado") EstadoAfiliado estado);
+
     @Query("select max(a.nroAfiliado) from Afiliado a where a.nroAfiliado like concat(:base, '%')")
     String ultimoNroDelGrupo(@Param("base") String base);
 }

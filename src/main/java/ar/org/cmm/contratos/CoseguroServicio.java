@@ -2,6 +2,7 @@ package ar.org.cmm.contratos;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Contrato publicado por F2 (Cobertura). Regla acordada (H12):
@@ -10,6 +11,9 @@ import java.time.LocalDate;
 public interface CoseguroServicio {
 
     CalculoCoseguro calcular(Long prestadorId, Long practicaId, Long planId, LocalDate fecha);
+
+    /** Coseguro de una práctica para todos los planes activos (lo usa el simulador y F5 para informes). */
+    List<CalculoCoseguro> simularTodosLosPlanes(Long prestadorId, Long practicaId, LocalDate fecha);
 
     /** Porcentaje de cobertura del plan para un rubro (aplica excepciones por rubro si existen). */
     BigDecimal porcentajeCobertura(Long planId, String rubro);
