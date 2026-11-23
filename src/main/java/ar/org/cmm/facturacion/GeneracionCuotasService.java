@@ -34,6 +34,7 @@ public class GeneracionCuotasService {
     static final String NUMERADOR = "COMPROBANTE_CUOTA";
     private static final DateTimeFormatter PERIODO = DateTimeFormatter.ofPattern("yyyyMM");
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final java.text.NumberFormat MONEDA = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("es-AR"));
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
     private final AfiliadoConsulta afiliados;
@@ -167,6 +168,14 @@ public class GeneracionCuotasService {
                 c.agregarItem(item(codRecargo, codRecargo.getDescripcion() + " (" + tasa.stripTrailingZeros().toPlainString()
                         + "% s/ $" + deudaVencida.setScale(2, RoundingMode.HALF_UP).toPlainString() + ")", 1, recargo));
                 conRecargo++;
+            }
+
+            // Leyenda de deuda en la cuota (respuesta L11: el "Clearing" es un aviso de que el afiliado registra deuda)
+            if (deudaVencida.signum() > 0) {
+                String leyenda = parametros.texto(ParametroService.LEYENDA_DEUDA)
+                        .replace("{deuda}", MONEDA.format(deudaVencida))
+                        .replace("{fecha}", fechaEmision.format(FECHA));
+                c.setObservaciones(leyenda.length() > 300 ? leyenda.substring(0, 300) : leyenda);
             }
 
             BigDecimal total = c.getItems().stream().map(ComprobanteItem::getImporte).reduce(BigDecimal.ZERO, BigDecimal::add);

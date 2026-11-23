@@ -154,6 +154,9 @@ public class ImpresionFacturacionService {
             }
             b.totales("Saldo pendiente", null, c.saldo());
         }
+        if (Comprobante.TIPO_CUOTA.equals(c.tipo()) && c.observaciones() != null) {
+            b.nota(c.observaciones());
+        }
         return b.nota("Comprobante interno del Círculo Médico de Mendoza. No válido como factura.").build();
     }
 

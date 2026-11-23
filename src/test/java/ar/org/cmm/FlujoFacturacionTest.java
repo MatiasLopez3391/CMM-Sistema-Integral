@@ -15,6 +15,11 @@ import ar.org.cmm.facturacion.IpcService;
 import ar.org.cmm.facturacion.CodigoServicioRepository;
 import ar.org.cmm.facturacion.ComprobanteRepository;
 import ar.org.cmm.facturacion.NotaService;
+import ar.org.cmm.facturacion.MoraService;
+import ar.org.cmm.facturacion.NotificacionService;
+import ar.org.cmm.facturacion.NotificacionRepository;
+import ar.org.cmm.facturacion.FacturacionDtos.ProcesoMoraDto;
+import ar.org.cmm.contratos.BloqueoServicio;
 import ar.org.cmm.facturacion.FacturacionDtos.NotaRequest;
 import ar.org.cmm.facturacion.FacturacionDtos.ResultadoNota;
 import ar.org.cmm.facturacion.ValorCuotaService;
@@ -66,6 +71,10 @@ class FlujoFacturacionTest {
     @Autowired NotaService notas;
     @Autowired ComprobanteRepository comprobantes;
     @Autowired CodigoServicioRepository codigos;
+    @Autowired MoraService mora;
+    @Autowired BloqueoServicio bloqueos;
+    @Autowired NotificacionService notificaciones;
+    @Autowired NotificacionRepository notificacionesRepo;
 
     @Test
     @Order(1)
@@ -224,5 +233,41 @@ class FlujoFacturacionTest {
         ExportacionAsientosService.Exportacion e = exportacion.exportar(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30));
         assertThat(e.totalDebe()).isEqualByComparingTo(e.totalHaber());
         assertThat(e.contenido()).contains("Nota de crédito " + nc.numero()).contains("Nota de débito " + nd.numero());
+    }
+
+    @Test
+    @Order(9)
+    void procesoDeMoraBloqueaConConfirmacionYNuncaDaDeBaja() {
+        Long ortiz = afiliados.porNroAfiliado("131090000800").orElseThrow().id();
+        ProcesoMoraDto p = mora.proceso(LocalDate.of(2026, 11, 22));
+        assertThat(p.antesDelDiaDeBloqueo()).isFalse(); // 22 >= día 20
+        // ORTIZ debe septiembre (parcial), octubre y noviembre: figura para bloquear y para dar de baja
+        assertThat(p.paraBloquear()).extracting(MorosoDto::afiliadoId).contains(ortiz);
+        assertThat(p.paraBaja()).filteredOn(m -> m.afiliadoId().equals(ortiz)).singleElement()
+                .satisfies(m -> assertThat(m.cuotasVencidas()).isGreaterThanOrEqualTo(3));
+        assertThat(mora.proceso(LocalDate.of(2026, 11, 15)).antesDelDiaDeBloqueo()).isTrue();
+
+        // El usuario confirma el bloqueo
+        assertThat(mora.bloquear(List.of(ortiz), LocalDate.of(2026, 11, 22)).bloqueados()).isEqualTo(1);
+        assertThat(bloqueos.estaBloqueado(ortiz)).isTrue();
+        assertThat(mora.bloquear(List.of(ortiz), LocalDate.of(2026, 11, 22)).omitidos()).singleElement()
+                .satisfies(t -> assertThat(t).contains("ya estaba bloqueado"));
+        assertThat(mora.proceso(LocalDate.of(2026, 11, 22)).paraBloquear()).extracting(MorosoDto::afiliadoId).doesNotContain(ortiz);
+        // La baja es siempre manual: el proceso no la hace
+        assertThat(afiliados.obtener(ortiz).estado()).isEqualTo("ACTIVO");
+    }
+
+    @Test
+    @Order(10)
+    void laCuotaLlevaLaLeyendaDeDeudaYElAvisoUsaElTextoConfigurado() {
+        Long ortiz = afiliados.porNroAfiliado("131090000800").orElseThrow().id();
+        generacion.generar("202612", LocalDate.of(2026, 12, 1));
+        var dicOrtiz = comprobantes.findByAfiliadoIdOrderByFechaEmisionDesc(ortiz).stream()
+                .filter(c -> c.getPeriodo().equals("202612") && c.getTipo().equals("CUOTA")).findFirst().orElseThrow();
+        assertThat(dicOrtiz.getObservaciones()).contains("registra deuda vencida").contains("Clearing").contains("01/12/2026");
+
+        notificaciones.avisarDeuda(List.of(ortiz));
+        var aviso = notificacionesRepo.findTop200ByOrderByFechaCreacionDesc().get(0);
+        assertThat(aviso.getCuerpo()).startsWith("Estimado/a ORTIZ").contains("\n\nLe informamos").doesNotContain("{deuda}");
     }
 }

@@ -25,7 +25,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Avisos por mail de deuda (y, más adelante, de vencimiento, bloqueo y desbloqueo).
+ * Avisos por mail de deuda, a uno o a todos los morosos del listado (T51). El asunto y el texto se editan
+ * desde la pantalla de Morosos (parámetros aviso.deuda.*).
  * Si no hay servidor SMTP configurado (SMTP_HOST), el aviso queda registrado con estado SIN_SMTP
  * para que se vea en pantalla qué se hubiera enviado.
  */
@@ -40,11 +41,12 @@ public class NotificacionService {
     private final AfiliadoConsulta afiliados;
     private final ObjectProvider<JavaMailSender> mailSender;
     private final AuditoriaService auditoria;
+    private final ParametroService parametros;
     private final String smtpHost;
     private final String remitente;
 
     public NotificacionService(NotificacionRepository repo, ReportesFacturacionService reportes, AfiliadoConsulta afiliados,
-                               ObjectProvider<JavaMailSender> mailSender, AuditoriaService auditoria,
+                               ObjectProvider<JavaMailSender> mailSender, AuditoriaService auditoria, ParametroService parametros,
                                @Value("${spring.mail.host:}") String smtpHost,
                                @Value("${app.mail-remitente}") String remitente) {
         this.repo = repo;
@@ -52,6 +54,7 @@ public class NotificacionService {
         this.afiliados = afiliados;
         this.mailSender = mailSender;
         this.auditoria = auditoria;
+        this.parametros = parametros;
         this.smtpHost = smtpHost;
         this.remitente = remitente;
     }
@@ -78,14 +81,13 @@ public class NotificacionService {
             n.setDestinatario(a.email());
             n.setTipo("AVISO_DEUDA");
             n.setFechaCreacion(LocalDateTime.now());
-            n.setAsunto("Círculo Médico de Mendoza - Aviso de deuda");
-            n.setCuerpo("Estimado/a " + a.apellidoNombre() + ":\n\n"
-                    + "Le informamos que al " + hoy.format(FECHA) + " registra " + m.cuotasVencidas()
-                    + " cuota(s) vencida(s) por un total de " + moneda.format(m.deudaVencida()) + ".\n"
-                    + "La deuda más antigua venció el " + m.vencimientoMasAntiguo().format(FECHA) + ".\n\n"
-                    + "Puede abonar por PagoMisCuentas, Pago Fácil, Rapipago o en nuestras oficinas.\n"
-                    + "Si ya realizó el pago, desestime este mensaje.\n\n"
-                    + "Departamento de Cobranzas - Círculo Médico de Mendoza");
+            n.setAsunto(parametros.texto(ParametroService.AVISO_ASUNTO));
+            n.setCuerpo(parametros.textoLargo(ParametroService.AVISO_TEXTO)
+                    .replace("{nombre}", a.apellidoNombre())
+                    .replace("{fecha}", hoy.format(FECHA))
+                    .replace("{cuotas}", String.valueOf(m.cuotasVencidas()))
+                    .replace("{deuda}", moneda.format(m.deudaVencida()))
+                    .replace("{vencimiento}", m.vencimientoMasAntiguo().format(FECHA)));
             if (a.email() == null || a.email().isBlank()) {
                 n.setEstado("SIN_EMAIL");
                 sinEmail++;

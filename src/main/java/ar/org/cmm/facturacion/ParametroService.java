@@ -17,6 +17,11 @@ public class ParametroService {
     public static final String TASA_RECARGO = "mora.tasa_recargo_porcentaje";
     public static final String CUENTA_DEUDORES = "contable.cuenta_deudores";
     public static final String CUOTAS_MINIMAS_MOROSO = "morosos.cuotas_minimas";
+    public static final String DIA_BLOQUEO = "mora.dia_bloqueo";
+    public static final String CUOTAS_BAJA = "mora.cuotas_baja";
+    public static final String LEYENDA_DEUDA = "cuota.leyenda_deuda";
+    public static final String AVISO_ASUNTO = "aviso.deuda.asunto";
+    public static final String AVISO_TEXTO = "aviso.deuda.texto";
     public static final String EXPORT_COLUMNAS = "contable.export.columnas";
     public static final String EXPORT_SEPARADOR = "contable.export.separador";
     public static final String EXPORT_FORMATO_FECHA = "contable.export.formato_fecha";
@@ -40,6 +45,11 @@ public class ParametroService {
 
     public BigDecimal decimal(String clave) {
         return new BigDecimal(texto(clave).trim().replace(',', '.'));
+    }
+
+    /** Texto con saltos de línea: en la base se guardan como \n literal. */
+    public String textoLargo(String clave) {
+        return texto(clave).replace("\\n", "\n");
     }
 
     public int entero(String clave) {
@@ -107,6 +117,22 @@ public class ParametroService {
                 case EXPORT_EXTENSION -> {
                     if (!v.equalsIgnoreCase("csv") && !v.equalsIgnoreCase("txt")) {
                         throw new ReglaNegocioException("La extensión debe ser csv o txt.");
+                    }
+                }
+                case DIA_BLOQUEO -> {
+                    int d = Integer.parseInt(v);
+                    if (d < 1 || d > 28) {
+                        throw new ReglaNegocioException("El día de bloqueo debe estar entre 1 y 28.");
+                    }
+                }
+                case CUOTAS_BAJA -> {
+                    if (Integer.parseInt(v) < 1) {
+                        throw new ReglaNegocioException("Debe ser al menos 1.");
+                    }
+                }
+                case LEYENDA_DEUDA -> {
+                    if (v.length() > 250) {
+                        throw new ReglaNegocioException("La leyenda no puede superar los 250 caracteres.");
                     }
                 }
                 case CUOTAS_MINIMAS_MOROSO -> {

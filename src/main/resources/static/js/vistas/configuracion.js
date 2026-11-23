@@ -15,8 +15,8 @@ export async function render(el) {
         { t: 'Descripción', v: p => esc(p.descripcion) },
         { t: 'Valor', v: p => `<input class="valor" data-clave="${esc(p.clave)}" value="${esc(p.valor)}" style="width:140px">` },
         { t: '', cls: 'derecha', v: p => `<button class="btn chico" data-guardar="${esc(p.clave)}">Guardar</button>` }
-      ], parametros.filter(p => !p.clave.startsWith('contable.export.'))))}
-      <p class="suave">El formato del archivo de asientos se ajusta en Exportación contable.</p>
+      ], parametros.filter(p => !p.clave.startsWith('contable.export.') && !p.clave.startsWith('aviso.'))))}
+      <p class="suave">El formato del archivo de asientos se ajusta en Exportación contable y el texto del aviso de deuda, en Morosos.</p>
     </div>
     <div class="tarjeta" id="tFeriados">
       <div class="tarjeta-titulo">

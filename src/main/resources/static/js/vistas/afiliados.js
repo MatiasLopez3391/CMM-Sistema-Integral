@@ -374,6 +374,7 @@ export async function verComprobante(id, alCambiar) {
     const titulo = { CUOTA: 'Comprobante', NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito' }[c.tipo] || 'Comprobante';
     const m = modal(`${titulo} ${c.numero}`, html`
       <div class="cinta aviso">${c.tipo === 'CUOTA' ? 'Comprobante interno de cuota.' : titulo + ' interna.'} No válido como factura.</div>
+      ${raw(c.observaciones && c.tipo === 'CUOTA' ? `<div class="cinta error">${esc(c.observaciones)}</div>` : '')}
       ${raw(c.observaciones && c.tipo !== 'CUOTA' ? `<p><b>Motivo:</b> ${esc(c.observaciones)}${c.comprobanteAsociado ? ` · corrige <span class="mono">${esc(c.comprobanteAsociado)}</span>` : ''}</p>` : '')}
       <div class="datos" style="margin-bottom:12px">
         ${raw(dato('Afiliado', c.nroAfiliado + ' ' + c.apellidoNombre))}${raw(dato('Período', fmt.periodo(c.periodo)))}

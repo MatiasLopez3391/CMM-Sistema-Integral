@@ -179,4 +179,18 @@ public final class FacturacionDtos {
     public record ResultadoNota(Long id, String numero, String tipo, BigDecimal importe, BigDecimal aplicado, BigDecimal aFavor,
                                 LocalDate fechaVencimiento) {
     }
+
+    // ---------------- Proceso de mora (T52)
+    public record ProcesoMoraDto(LocalDate fecha, int diaBloqueo, int cuotasBaja, boolean antesDelDiaDeBloqueo,
+                                 List<MorosoDto> paraBloquear, List<MorosoDto> paraBaja) {
+    }
+
+    public record BloqueoMoraRequest(@NotNull List<Long> afiliadoIds, LocalDate fecha) {
+    }
+
+    public record ResultadoBloqueoMora(int bloqueados, List<String> omitidos) {
+    }
+
+    public record TextoAvisoRequest(@NotBlank @Size(max = 200) String asunto, @NotBlank @Size(max = 1800) String texto) {
+    }
 }
