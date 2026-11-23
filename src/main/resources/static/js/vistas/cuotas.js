@@ -1,5 +1,5 @@
 import { api, fmt } from '../api.js';
-import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, cargando, conBoton, badgeEstado } from '../ui.js';
+import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, cargando, conBoton, badgeEstado, botonesDescarga, enlazarDescarga } from '../ui.js';
 import { verComprobante } from './afiliados.js';
 import { dialogoCoseguro, dialogoAnularCoseguro } from './coseguro-dialogo.js';
 
@@ -118,6 +118,7 @@ async function tabCoseguros(c) {
           <option value="">Todos</option><option value="PENDIENTE">Pendientes</option><option value="FACTURADO">Facturados</option><option value="ANULADO">Anulados</option>
         </select></div>
         <button class="btn">Ver</button>
+        ${raw(botonesDescarga('cos'))}
       </form>
     </div>
     <div id="resCos"></div>`;
@@ -149,6 +150,7 @@ async function tabCoseguros(c) {
     } catch (e) { error(e); }
   };
   $('#filtro', c).addEventListener('submit', e => { e.preventDefault(); cargar(); });
+  enlazarDescarga(c, 'cos', '/api/facturacion/imprimir/coseguros', () => datosForm($('#filtro', c)), api);
   $('#nuevo', c).addEventListener('click', () => dialogoCoseguro({ alTerminar: cargar }));
   await cargar();
 }
@@ -302,7 +304,8 @@ async function tabResumen(c, periodoSel) {
   c.innerHTML = html`
     <div class="tarjeta">
       <div class="tarjeta-titulo"><h2>Resumen de facturación</h2>
-        <div class="campo chico"><select id="selPeriodo">${raw(opciones(periodos.map(p => ({ id: p, nombre: fmt.periodo(p) })), periodo))}</select></div></div>
+        <div class="fila">${raw(botonesDescarga('res'))}
+        <div class="campo chico"><select id="selPeriodo">${raw(opciones(periodos.map(p => ({ id: p, nombre: fmt.periodo(p) })), periodo))}</select></div></div></div>
       <div class="grid-kpi">
         <div class="kpi"><div class="kpi-etiqueta">Comprobantes</div><div class="kpi-valor">${r.comprobantes}</div></div>
         <div class="kpi"><div class="kpi-etiqueta">Facturado</div><div class="kpi-valor">${fmt.moneda(r.total)}</div></div>
@@ -325,6 +328,7 @@ async function tabResumen(c, periodoSel) {
         { t: 'Pendiente', cls: 'num', v: x => fmt.moneda(x.pendiente) }
       ], r.porPlan))}
     </div>`;
+  enlazarDescarga(c, 'res', '/api/facturacion/imprimir/resumen', () => ({ periodo }), api);
   $('#selPeriodo', c).addEventListener('change', e => { location.hash = `#/cuotas/resumen/${e.target.value}`; });
 }
 

@@ -1,22 +1,46 @@
 import { api, fmt } from '../api.js';
-import { html, raw, esc, $, tabla, toast, error, cargando, conBoton } from '../ui.js';
+import { html, raw, esc, $, $$, tabla, toast, error, cargando, conBoton } from '../ui.js';
+
+const ETIQUETAS = {
+  'contable.export.columnas': 'Columnas (en orden)',
+  'contable.export.separador': 'Separador de columnas',
+  'contable.export.formato_fecha': 'Formato de fecha',
+  'contable.export.separador_decimal': 'Separador decimal',
+  'contable.export.encabezado': 'Primera línea con títulos (SI/NO)',
+  'contable.export.extension': 'Extensión del archivo'
+};
 
 export async function render(el) {
   cargando(el);
-  const codigos = await api.get('/api/facturacion/codigos-servicio');
+  const [codigos, formato, parametros] = await Promise.all([
+    api.get('/api/facturacion/codigos-servicio'), api.get('/api/facturacion/asientos/formato'), api.get('/api/facturacion/parametros')]);
   const hoy = fmt.hoy();
   const primeroDelMes = hoy.substring(0, 8) + '01';
+  const params = parametros.filter(p => ETIQUETAS[p.clave]);
   el.innerHTML = html`
     <div class="tarjeta">
-      <h2>Exportar asientos contables a FEBBO</h2>
-      <p class="ayuda">Genera el archivo de asientos del rango elegido: cada cuota emitida (Debe deudores / Haber la cuenta de cada concepto)
-      y cada pago imputado (Debe la cuenta del medio de cobro / Haber deudores). Formato CSV separado por “;”.</p>
+      <h2>Exportar asientos al sistema contable</h2>
+      <p class="ayuda">Genera el archivo de asientos del rango elegido para importarlo en el sistema contable: cada cuota o nota de débito
+      (Debe deudores / Haber la cuenta de cada concepto), cada nota de crédito (asiento inverso) y cada pago imputado
+      (Debe la cuenta del medio de cobro / Haber deudores). El formato del archivo se ajusta abajo.</p>
       <div class="fila">
         <div class="campo chico"><label>Desde</label><input type="date" id="desde" value="${primeroDelMes}"></div>
         <div class="campo chico"><label>Hasta</label><input type="date" id="hasta" value="${hoy}"></div>
         <button class="btn primario" id="exportar">Descargar archivo</button>
       </div>
       <div id="res" style="margin-top:12px"></div>
+    </div>
+    <div class="tarjeta">
+      <h2>Formato del archivo</h2>
+      <p class="ayuda">Se adapta al sistema contable que use el CMM sin cambiar el programa. Columnas disponibles:
+      ${formato.columnasDisponibles.map(c => c).join(', ')} (<span class="mono">importe</span> va sin signo y <span class="mono">dh</span> indica D o H).</p>
+      ${raw(tabla([
+        { t: 'Opción', v: p => esc(ETIQUETAS[p.clave]) },
+        { t: 'Valor', v: p => `<input class="valor" data-clave="${esc(p.clave)}" value="${esc(p.valor)}" style="width:${p.clave.endsWith('columnas') ? 420 : 140}px">` },
+        { t: '', cls: 'derecha', v: p => `<button class="btn chico" data-guardar="${esc(p.clave)}">Guardar</button>` }
+      ], params))}
+      <h3>Así quedan las primeras líneas</h3>
+      <pre class="mono" style="background:#f7f9fc;padding:12px;border-radius:6px;overflow:auto">${formato.ejemplo}</pre>
     </div>
     <div class="tarjeta">
       <h2>Código de servicio → cuenta contable</h2>
@@ -39,4 +63,12 @@ export async function render(el) {
       toast('Asientos exportados', 'ok');
     } catch (er) { error(er); }
   }));
+  $$('[data-guardar]', el).forEach(b => b.addEventListener('click', () => conBoton(b, async () => {
+    const clave = b.dataset.guardar;
+    try {
+      await api.put(`/api/facturacion/parametros/${encodeURIComponent(clave)}`, { valor: $(`.valor[data-clave="${clave}"]`, el).value });
+      toast('Formato actualizado', 'ok');
+      render(el);
+    } catch (er) { error(er); }
+  })));
 }

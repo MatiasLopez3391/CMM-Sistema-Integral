@@ -12,7 +12,7 @@ const RUTAS = {
   cuotas: { titulo: 'Cuotas', modulo: './vistas/cuotas.js' },
   cobranza: { titulo: 'Cobranza', modulo: './vistas/cobranza.js' },
   morosos: { titulo: 'Morosos', modulo: './vistas/morosos.js' },
-  contabilidad: { titulo: 'Exportación a FEBBO', modulo: './vistas/contabilidad.js' },
+  contabilidad: { titulo: 'Exportación a sistema contable', modulo: './vistas/contabilidad.js' },
   configuracion: { titulo: 'Configuración', modulo: './vistas/configuracion.js' }
 };
 

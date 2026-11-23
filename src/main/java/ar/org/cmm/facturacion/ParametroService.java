@@ -17,6 +17,12 @@ public class ParametroService {
     public static final String TASA_RECARGO = "mora.tasa_recargo_porcentaje";
     public static final String CUENTA_DEUDORES = "contable.cuenta_deudores";
     public static final String CUOTAS_MINIMAS_MOROSO = "morosos.cuotas_minimas";
+    public static final String EXPORT_COLUMNAS = "contable.export.columnas";
+    public static final String EXPORT_SEPARADOR = "contable.export.separador";
+    public static final String EXPORT_FORMATO_FECHA = "contable.export.formato_fecha";
+    public static final String EXPORT_DECIMAL = "contable.export.separador_decimal";
+    public static final String EXPORT_ENCABEZADO = "contable.export.encabezado";
+    public static final String EXPORT_EXTENSION = "contable.export.extension";
 
     private final ParametroRepository repo;
     private final AuditoriaService auditoria;
@@ -48,7 +54,7 @@ public class ParametroService {
     @Transactional
     public void actualizar(String clave, String valor) {
         Parametro p = repo.findById(clave).orElseThrow(() -> new RecursoNoEncontradoException("Parámetro", clave));
-        String v = valor == null ? "" : valor.trim();
+        String v = valor == null ? "" : (clave.equals(EXPORT_SEPARADOR) && " ".equals(valor) ? valor : valor.trim());
         validar(clave, v);
         String anterior = p.getValor();
         p.setValor(v);
@@ -68,6 +74,39 @@ public class ParametroService {
                     BigDecimal t = new BigDecimal(v.replace(',', '.'));
                     if (t.signum() < 0 || t.compareTo(BigDecimal.valueOf(20)) > 0) {
                         throw new ReglaNegocioException("La tasa de recargo debe estar entre 0 y 20 %.");
+                    }
+                }
+                case EXPORT_COLUMNAS -> {
+                    List<String> cols = List.of(v.toLowerCase().replace(" ", "").split(","));
+                    if (cols.isEmpty() || !ExportacionAsientosService.COLUMNAS.containsAll(cols)) {
+                        throw new ReglaNegocioException("Columnas válidas: " + String.join(", ", ExportacionAsientosService.COLUMNAS) + ".");
+                    }
+                }
+                case EXPORT_SEPARADOR -> {
+                    if (!(v.equalsIgnoreCase("TAB") || v.length() == 1)) {
+                        throw new ReglaNegocioException("El separador debe ser un solo carácter (por ejemplo ; o ,) o TAB.");
+                    }
+                }
+                case EXPORT_FORMATO_FECHA -> {
+                    try {
+                        java.time.LocalDate.of(2026, 11, 22).format(java.time.format.DateTimeFormatter.ofPattern(v));
+                    } catch (Exception e) {
+                        throw new ReglaNegocioException("Formato de fecha inválido: " + v + " (ej. dd/MM/yyyy).");
+                    }
+                }
+                case EXPORT_DECIMAL -> {
+                    if (!v.equals(".") && !v.equals(",")) {
+                        throw new ReglaNegocioException("El separador decimal debe ser . o ,");
+                    }
+                }
+                case EXPORT_ENCABEZADO -> {
+                    if (!v.equalsIgnoreCase("SI") && !v.equalsIgnoreCase("NO")) {
+                        throw new ReglaNegocioException("Use SI o NO.");
+                    }
+                }
+                case EXPORT_EXTENSION -> {
+                    if (!v.equalsIgnoreCase("csv") && !v.equalsIgnoreCase("txt")) {
+                        throw new ReglaNegocioException("La extensión debe ser csv o txt.");
                     }
                 }
                 case CUOTAS_MINIMAS_MOROSO -> {

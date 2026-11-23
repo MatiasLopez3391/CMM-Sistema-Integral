@@ -1,5 +1,6 @@
 import { api, fmt, tieneRol } from '../api.js';
 import { ACCESO_PESTANIAS, ACCIONES } from '../permisos.js';
+import { botonesDescarga, enlazarDescarga } from '../ui.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
 
 let estadoBusqueda = { q: '', estado: 'ACTIVO', planId: '', bloqueado: '', soloTitulares: false, pagina: 0 };
@@ -144,7 +145,8 @@ async function tabCuenta(c, a, titularId) {
       <div class="kpi ${raw(ec.deudaVencida > 0 ? 'alerta' : '')}"><div class="kpi-etiqueta">Deuda vencida</div><div class="kpi-valor">${fmt.moneda(ec.deudaVencida)}</div></div>
     </div>
     <div class="fila" style="justify-content:space-between;margin-bottom:10px">
-      <span class="suave">Movimientos del ${fmt.fecha(ec.desde)} al ${fmt.fecha(ec.hasta)} · Saldo inicial ${fmt.moneda(ec.saldoInicial)}</span>
+      <span class="suave">Movimientos del ${fmt.fecha(ec.desde)} al ${fmt.fecha(ec.hasta)} · Saldo inicial ${fmt.moneda(ec.saldoInicial)}
+        <span style="margin-left:8px">${raw(botonesDescarga('cc'))}</span></span>
       <span class="fila">
         <button class="btn" id="notaCredito">Nota de crédito</button>
         <button class="btn" id="notaDebito">Nota de débito</button>
@@ -173,6 +175,7 @@ async function tabCuenta(c, a, titularId) {
     <p class="ayuda">Los pendientes se suman a la próxima cuota del grupo, con el nombre del integrante.</p>
     <div id="coseguros"></div>`;
   $$('[data-comp]', c).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp, renderActual); }));
+  enlazarDescarga(c, 'cc', `/api/facturacion/imprimir/cuenta-corriente/${titularId}`, () => ({ desde: ec.desde, hasta: ec.hasta }), api);
   ['notaCredito', 'notaDebito'].forEach(id => $(`#${id}`, c)?.addEventListener('click', async () => {
     const { dialogoNota } = await import('./nota-dialogo.js');
     dialogoNota({ tipo: id === 'notaCredito' ? 'CREDITO' : 'DEBITO', afiliadoId: titularId, nombre: ec.apellidoNombre,
@@ -394,8 +397,12 @@ export async function verComprobante(id, alCambiar) {
         { t: 'Motivo', v: n => esc(n.motivo) }, { t: 'Importe', cls: 'num', v: n => fmt.moneda(n.importe) }], c.notas)}` : '')}
       ${raw(c.tipo === 'NOTA_CREDITO' ? '' : `<p class="derecha"><b>Saldo: ${fmt.moneda(c.saldo)}</b></p>`)}
       <div class="acciones">
+        <button class="btn" id="pdfComp">Imprimir PDF</button>
         ${raw(c.tipo !== 'NOTA_CREDITO' && alCambiar ? '<button class="btn" id="ncSobre">Emitir nota de crédito</button>' : '')}
         <button class="btn" data-cerrar>Cerrar</button></div>`);
+    $('#pdfComp', m.el).addEventListener('click', e => conBoton(e.target, async () => {
+      try { await api.descargar(`/api/facturacion/imprimir/comprobantes/${c.id}`, { formato: 'pdf' }); } catch (er) { error(er); }
+    }));
     $('#ncSobre', m.el)?.addEventListener('click', async () => {
       const { dialogoNota } = await import('./nota-dialogo.js');
       m.cerrar();

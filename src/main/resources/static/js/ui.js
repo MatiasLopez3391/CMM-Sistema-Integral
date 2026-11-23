@@ -95,6 +95,18 @@ export function opciones(lista, valorSel, { valor = 'id', texto = 'nombre', vaci
   return ops.join('');
 }
 
+/** Botones "PDF" y "Excel" para descargar la versión imprimible de una pantalla. */
+export function botonesDescarga(id) {
+  return `<span class="fila" style="gap:6px"><button type="button" class="btn chico" data-descarga="${id}" data-formato="pdf">Imprimir PDF</button><button type="button" class="btn chico" data-descarga="${id}" data-formato="xlsx">Excel</button></span>`;
+}
+
+/** Enlaza los botones de botonesDescarga(id) con la descarga: params() devuelve los filtros vigentes. */
+export function enlazarDescarga(raiz, id, url, params = () => ({}), api) {
+  raiz.querySelectorAll(`[data-descarga="${id}"]`).forEach(b => b.addEventListener('click', () => conBoton(b, async () => {
+    try { await api.descargar(url, { ...params(), formato: b.dataset.formato }); } catch (e) { error(e); }
+  })));
+}
+
 export function cargando(el) {
   el.innerHTML = '<div class="tarjeta"><div class="vacio">Cargando…</div></div>';
 }
