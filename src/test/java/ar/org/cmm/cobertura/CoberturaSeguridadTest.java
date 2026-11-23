@@ -48,9 +48,9 @@ class CoberturaSeguridadTest {
         mvc.perform(get("/api/cobertura/coseguro" + COSEGURO).session(s)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.planCodigo").exists());
         mvc.perform(get("/api/cobertura/coseguro/simulador" + COSEGURO).session(s)).andExpect(status().isOk());
-        // los valores convenidos son información comercial
-        mvc.perform(get("/api/cobertura/prestadores/1/valores").session(s)).andExpect(status().isForbidden());
-        // y no se modifica nada
+        // consulta los valores convenidos para informar el importe de la orden
+        mvc.perform(get("/api/cobertura/prestadores/1/valores").session(s)).andExpect(status().isOk());
+        // pero no modifica nada
         mvc.perform(post("/api/cobertura/practicas").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
         mvc.perform(put("/api/cobertura/practicas/1").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
         mvc.perform(post("/api/cobertura/planes").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
@@ -79,7 +79,8 @@ class CoberturaSeguridadTest {
     void rubroInvalidoEsRechazadoAlModificarUnaPractica() throws Exception {
         MockHttpSession s = ingresar("silvina", "silvina2026");
         String cuerpo = "{\"codigoCmm\":\"420101\",\"descripcion\":\"Consulta\",\"rubro\":\"CIRUGIA\",\"requiereAuditoria\":false}";
+        // Un rubro inexistente es una regla de negocio: el sistema responde 422 (ManejadorErrores)
         mvc.perform(put("/api/cobertura/practicas/1").session(s).with(csrf()).contentType(JSON).content(cuerpo))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnprocessableEntity());
     }
 }

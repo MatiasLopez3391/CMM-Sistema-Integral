@@ -1,4 +1,6 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCESO_PESTANIAS, ACCIONES } from '../permisos.js';
+import { botonesDescarga, enlazarDescarga } from '../ui.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
 
 let estadoBusqueda = { q: '', estado: 'ACTIVO', planId: '', bloqueado: '', soloTitulares: false, pagina: 0 };
@@ -10,12 +12,13 @@ export async function render(el, params) {
 
 // =====================================================================  LISTADO
 async function renderListado(el) {
-  const planes = await api.get('/api/cobertura/planes');
+  // Planes es de Cobertura (F2) y no lo ven todos los roles: sin permiso, el filtro por plan queda vacío.
+  const planes = await api.get('/api/cobertura/planes').catch(() => []);
   el.innerHTML = html`
     <div class="tarjeta">
       <div class="tarjeta-titulo">
         <h2>Buscar afiliados</h2>
-        <button class="btn primario" id="nuevo">+ Nuevo afiliado</button>
+        ${raw(tieneRol(ACCIONES.editarAfiliado) ? '<button class="btn primario" id="nuevo">+ Nuevo afiliado</button>' : '')}
       </div>
       <form id="filtros" class="fila">
         <div class="campo"><label>Nro. afiliado, documento o apellido</label><input name="q" value="${estadoBusqueda.q}" placeholder="Ej.: 1310900001, 28455120, Gómez"></div>
@@ -33,7 +36,7 @@ async function renderListado(el) {
     estadoBusqueda = { q: d.q || '', estado: d.estado || '', planId: d.planId || '', bloqueado: d.bloqueado || '', soloTitulares: d.soloTitulares, pagina: 0 };
     buscar(el);
   });
-  $('#nuevo', el).addEventListener('click', () => formularioAfiliado(null));
+  $('#nuevo', el)?.addEventListener('click', () => formularioAfiliado(null)); // el botón no existe para quien solo consulta
   buscar(el);
 }
 
@@ -65,6 +68,8 @@ async function renderFicha(el, id, tab) {
   const titularId = a.titularId || a.id;
   const esTitular = !a.titularId;
   const activo = a.estado === 'ACTIVO';
+  const puedeEditar = tieneRol(ACCIONES.editarAfiliado);
+  const puedeBloquear = tieneRol(ACCIONES.bloquearAfiliado);
   el.innerHTML = html`
     <p><a href="#/afiliados">← Volver al listado</a></p>
     ${raw(a.bloqueado ? `<div class="cinta error"><b>Grupo familiar bloqueado</b>${a.ultimaMarcaBloqueo ? ' · ' + esc(a.ultimaMarcaBloqueo) : ''}. Sigue activo en la obra social pero no puede pedir órdenes.</div>` : '')}
@@ -77,16 +82,17 @@ async function renderFicha(el, id, tab) {
           <div class="suave"><span class="mono">${a.nroAfiliado}</span> · ${a.parentesco}${raw(a.titularNombre ? ` de <a href="#/afiliados/${a.titularId}">${esc(a.titularNombre)}</a>` : '')} · Plan ${a.planCodigo} ${a.planNombre} (${fmt.pct(a.coberturaPorcentaje)})</div>
         </div>
         <div class="fila">
-          ${raw(activo ? '<button class="btn" id="editar">Editar</button>' : '')}
-          ${raw(activo && esTitular ? '<button class="btn" id="integrante">+ Integrante</button>' : '')}
-          ${raw(activo ? (a.bloqueado ? '<button class="btn" id="desbloquear">Desbloquear</button>' : '<button class="btn peligro" id="bloquear">Bloquear</button>') : '')}
-          ${raw(activo ? '<button class="btn peligro" id="baja">Dar de baja</button>' : '')}
+          ${raw(activo && puedeEditar ? '<button class="btn" id="editar">Editar</button>' : '')}
+          ${raw(activo && puedeEditar && esTitular ? '<button class="btn" id="integrante">+ Integrante</button>' : '')}
+          ${raw(activo && puedeBloquear ? (a.bloqueado ? '<button class="btn" id="desbloquear">Desbloquear</button>' : '<button class="btn peligro" id="bloquear">Bloquear</button>') : '')}
+          ${raw(activo && puedeEditar ? '<button class="btn peligro" id="baja">Dar de baja</button>' : '')}
         </div>
       </div>
     </div>
     <div class="tarjeta">
       <div class="tabs" id="tabs">
         ${raw(['datos:Datos', 'grupo:Grupo familiar', 'cuenta:Cuenta corriente', 'pagos:Pagos', 'hc:Historia clínica', 'bloqueos:Bloqueos', 'auditoria:Auditoría']
+          .filter(x => { const roles = ACCESO_PESTANIAS[x.split(':')[0]]; return !roles || tieneRol(roles); })
           .map(x => { const [k, t] = x.split(':'); return `<button data-tab="${k}" class="${k === tab ? 'activo' : ''}">${t}</button>`; }).join(''))}
       </div>
       <div id="contenidoTab"></div>
@@ -139,8 +145,14 @@ async function tabCuenta(c, a, titularId) {
       <div class="kpi ${raw(ec.deudaVencida > 0 ? 'alerta' : '')}"><div class="kpi-etiqueta">Deuda vencida</div><div class="kpi-valor">${fmt.moneda(ec.deudaVencida)}</div></div>
     </div>
     <div class="fila" style="justify-content:space-between;margin-bottom:10px">
-      <span class="suave">Movimientos del ${fmt.fecha(ec.desde)} al ${fmt.fecha(ec.hasta)} · Saldo inicial ${fmt.moneda(ec.saldoInicial)}</span>
-      ${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="pagar">Registrar pago en ventanilla</button>' : '')}
+      <span class="suave">Movimientos del ${fmt.fecha(ec.desde)} al ${fmt.fecha(ec.hasta)} · Saldo inicial ${fmt.moneda(ec.saldoInicial)}
+        <span style="margin-left:8px">${raw(botonesDescarga('cc'))}</span></span>
+      <span class="fila">
+        <button class="btn" id="notaCredito">Nota de crédito</button>
+        <button class="btn" id="notaDebito">Nota de débito</button>
+        ${raw(a.estado === 'ACTIVO' ? '<button class="btn" id="coseguro">Cargar coseguro</button>' : '')}
+        ${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="pagar">Registrar pago en ventanilla</button>' : '')}
+      </span>
     </div>
     ${raw(tabla([
       { t: 'Fecha', v: m => fmt.fecha(m.fecha) },
@@ -152,13 +164,36 @@ async function tabCuenta(c, a, titularId) {
     <h3>Comprobantes</h3>
     ${raw(tabla([
       { t: 'Número', v: x => `<a href="#" data-comp="${x.id}" class="mono">${esc(x.numero)}</a>` },
+      { t: 'Tipo', v: x => ({ CUOTA: 'Cuota', NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito' }[x.tipo] || esc(x.tipo)) },
       { t: 'Período', v: x => fmt.periodo(x.periodo) },
-      { t: 'Vencimiento', v: x => fmt.fecha(x.fechaVencimiento) },
+      { t: 'Vencimiento', v: x => x.tipo === 'NOTA_CREDITO' ? '—' : fmt.fecha(x.fechaVencimiento) },
       { t: 'Total', cls: 'num', v: x => fmt.moneda(x.total) },
       { t: 'Saldo', cls: 'num', v: x => fmt.moneda(x.saldo) },
       { t: 'Estado', v: x => badgeEstado(x.estado) }
-    ], ec.comprobantes, { vacio: 'Sin comprobantes.' }))}`;
-  $$('[data-comp]', c).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp); }));
+    ], ec.comprobantes, { vacio: 'Sin comprobantes.' }))}
+    <h3>Coseguros</h3>
+    <p class="ayuda">Los pendientes se suman a la próxima cuota del grupo, con el nombre del integrante.</p>
+    <div id="coseguros"></div>`;
+  $$('[data-comp]', c).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp, renderActual); }));
+  enlazarDescarga(c, 'cc', `/api/facturacion/imprimir/cuenta-corriente/${titularId}`, () => ({ desde: ec.desde, hasta: ec.hasta }), api);
+  ['notaCredito', 'notaDebito'].forEach(id => $(`#${id}`, c)?.addEventListener('click', async () => {
+    const { dialogoNota } = await import('./nota-dialogo.js');
+    dialogoNota({ tipo: id === 'notaCredito' ? 'CREDITO' : 'DEBITO', afiliadoId: titularId, nombre: ec.apellidoNombre,
+      comprobantes: ec.comprobantes, alTerminar: () => renderActual() });
+  }));
+  const cargarCoseguros = async () => {
+    const { tablaCoseguros, enlazarAcciones } = await import('./cuotas.js');
+    const cargos = await api.get(`/api/facturacion/coseguros/afiliado/${titularId}`);
+    const cont = $('#coseguros', c);
+    cont.innerHTML = tablaCoseguros(cargos, false);
+    enlazarAcciones(cont, cargos, cargarCoseguros);
+  };
+  cargarCoseguros().catch(error);
+  $('#coseguro', c)?.addEventListener('click', async () => {
+    const { dialogoCoseguro } = await import('./coseguro-dialogo.js');
+    const grupo = a.grupoFamiliar.filter(g => g.estado === 'ACTIVO');
+    dialogoCoseguro({ grupo, alTerminar: cargarCoseguros });
+  });
   $('#pagar', c)?.addEventListener('click', () => dialogoPagoVentanilla(a.id, a.apellido + ', ' + a.nombre, () => renderActual()));
 }
 
@@ -177,8 +212,8 @@ async function tabPagos(c, a) {
 async function tabHistoria(c, a) {
   const entradas = await api.get(`/api/afiliados/${a.id}/historia-clinica`, { grupo: true });
   c.innerHTML = html`
-    <div class="cinta info">Información confidencial. Acceso restringido a auditoría médica y mesa de entradas; cada consulta queda registrada.</div>
-    <div class="fila" style="justify-content:flex-end;margin-bottom:10px">${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="nuevaHc">+ Nueva entrada</button>' : '')}</div>
+    <div class="cinta info">Información confidencial: cada consulta queda registrada.</div>
+    <div class="fila" style="justify-content:flex-end;margin-bottom:10px">${raw(a.estado === 'ACTIVO' && tieneRol(ACCIONES.cargarHistoriaClinica) ? '<button class="btn primario" id="nuevaHc">+ Nueva entrada</button>' : '')}</div>
     ${raw(tabla([
       { t: 'Fecha', v: x => fmt.fecha(x.fecha) },
       { t: 'Afiliado', v: x => esc(x.afiliado) },
@@ -333,11 +368,14 @@ function dialogoBaja(a) {
   }));
 }
 
-export async function verComprobante(id) {
+export async function verComprobante(id, alCambiar) {
   try {
     const c = await api.get(`/api/facturacion/comprobantes/${id}`);
-    modal(`Comprobante ${c.numero}`, html`
-      <div class="cinta aviso">Comprobante interno de cuota. No válido como factura.</div>
+    const titulo = { CUOTA: 'Comprobante', NOTA_CREDITO: 'Nota de crédito', NOTA_DEBITO: 'Nota de débito' }[c.tipo] || 'Comprobante';
+    const m = modal(`${titulo} ${c.numero}`, html`
+      <div class="cinta aviso">${c.tipo === 'CUOTA' ? 'Comprobante interno de cuota.' : titulo + ' interna.'} No válido como factura.</div>
+      ${raw(c.observaciones && c.tipo === 'CUOTA' ? `<div class="cinta error">${esc(c.observaciones)}</div>` : '')}
+      ${raw(c.observaciones && c.tipo !== 'CUOTA' ? `<p><b>Motivo:</b> ${esc(c.observaciones)}${c.comprobanteAsociado ? ` · corrige <span class="mono">${esc(c.comprobanteAsociado)}</span>` : ''}</p>` : '')}
       <div class="datos" style="margin-bottom:12px">
         ${raw(dato('Afiliado', c.nroAfiliado + ' ' + c.apellidoNombre))}${raw(dato('Período', fmt.periodo(c.periodo)))}
         ${raw(dato('Emisión', fmt.fecha(c.fechaEmision)))}${raw(dato('Vencimiento', fmt.fecha(c.fechaVencimiento)))}
@@ -351,11 +389,28 @@ export async function verComprobante(id) {
         { t: 'Importe', cls: 'num', v: i => fmt.moneda(i.importe) },
         { t: 'Cuenta', v: i => `<span class="mono suave">${esc(i.cuentaContable)}</span>` }
       ], c.items, { pie: [{}, { v: 'Total' }, {}, {}, { cls: 'num', v: fmt.moneda(c.total) }, {}] }))}
-      <h3>Pagos imputados</h3>
-      ${raw(tabla([{ t: 'Pago', v: i => '#' + i.pagoId }, { t: 'Fecha', v: i => fmt.fecha(i.fecha) }, { t: 'Importe', cls: 'num', v: i => fmt.moneda(i.importe) }],
-        c.imputaciones, { vacio: 'Sin pagos imputados.' }))}
-      <p class="derecha"><b>Saldo: ${fmt.moneda(c.saldo)}</b></p>
-      <div class="acciones"><button class="btn" data-cerrar>Cerrar</button></div>`);
+      ${raw(c.tipo === 'NOTA_CREDITO' ? '' : `<h3>Pagos y créditos aplicados</h3>
+      ${tabla([{ t: 'Origen', v: i => esc(i.origen) }, { t: 'Fecha', v: i => fmt.fecha(i.fecha) }, { t: 'Importe', cls: 'num', v: i => fmt.moneda(i.importe) }],
+        c.imputaciones, { vacio: 'Sin pagos aplicados.' })}`)}
+      ${raw(c.notas.length ? `<h3>Notas emitidas sobre este comprobante</h3>
+      ${tabla([{ t: 'Número', v: n => `<span class="mono">${esc(n.numero)}</span>` },
+        { t: 'Tipo', v: n => n.tipo === 'NOTA_CREDITO' ? 'Crédito' : 'Débito' }, { t: 'Fecha', v: n => fmt.fecha(n.fecha) },
+        { t: 'Motivo', v: n => esc(n.motivo) }, { t: 'Importe', cls: 'num', v: n => fmt.moneda(n.importe) }], c.notas)}` : '')}
+      ${raw(c.tipo === 'NOTA_CREDITO' ? '' : `<p class="derecha"><b>Saldo: ${fmt.moneda(c.saldo)}</b></p>`)}
+      <div class="acciones">
+        <button class="btn" id="pdfComp">Imprimir PDF</button>
+        ${raw(c.tipo !== 'NOTA_CREDITO' && alCambiar ? '<button class="btn" id="ncSobre">Emitir nota de crédito</button>' : '')}
+        <button class="btn" data-cerrar>Cerrar</button></div>`);
+    $('#pdfComp', m.el).addEventListener('click', e => conBoton(e.target, async () => {
+      try { await api.descargar(`/api/facturacion/imprimir/comprobantes/${c.id}`, { formato: 'pdf' }); } catch (er) { error(er); }
+    }));
+    $('#ncSobre', m.el)?.addEventListener('click', async () => {
+      const { dialogoNota } = await import('./nota-dialogo.js');
+      m.cerrar();
+      dialogoNota({ tipo: 'CREDITO', afiliadoId: c.afiliadoId, nombre: c.apellidoNombre, comprobanteId: c.id,
+        comprobantes: [{ id: c.id, tipo: c.tipo, numero: c.numero, periodo: c.periodo, total: c.total, saldo: c.saldo, estado: c.estado }],
+        alTerminar: alCambiar });
+    });
   } catch (e) { error(e); }
 }
 

@@ -34,7 +34,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/afiliados/{afiliadoId}/historia-clinica")
-@RequiereRol({Rol.MEDICO_AUDITOR, Rol.MESA_ENTRADAS})
+// Consulta: cualquier usuario con sesión. Carga de entradas: solo Mesa de Entradas (emisión de órdenes) y el permiso total.
 public class HistoriaClinicaController {
 
     private final HistoriaClinicaRepository repo;
@@ -74,6 +74,7 @@ public class HistoriaClinicaController {
     }
 
     @PostMapping
+    @RequiereRol({Rol.MESA_ENTRADAS})
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
     public Map<String, Long> agregar(@PathVariable Long afiliadoId, @Valid @RequestBody EntradaRequest req) {

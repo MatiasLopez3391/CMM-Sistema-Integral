@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * Cuenta corriente del grupo familiar (siempre sobre el titular).
- * Imputación automática: cada pago cancela primero la deuda más antigua.
+ * Imputación automática: cada pago (o nota de crédito) cancela primero la deuda más antigua.
  */
 @Service
 public class CuentaCorrienteServicioImpl implements CuentaCorrienteServicio {
@@ -27,13 +27,16 @@ public class CuentaCorrienteServicioImpl implements CuentaCorrienteServicio {
     private final MovimientoCuentaCorrienteRepository movimientos;
     private final ComprobanteRepository comprobantes;
     private final ImputacionRepository imputaciones;
+    private final AplicacionCreditoRepository aplicaciones;
     private final AfiliadoConsulta afiliados;
 
     public CuentaCorrienteServicioImpl(MovimientoCuentaCorrienteRepository movimientos, ComprobanteRepository comprobantes,
-                                       ImputacionRepository imputaciones, AfiliadoConsulta afiliados) {
+                                       ImputacionRepository imputaciones, AplicacionCreditoRepository aplicaciones,
+                                       AfiliadoConsulta afiliados) {
         this.movimientos = movimientos;
         this.comprobantes = comprobantes;
         this.imputaciones = imputaciones;
+        this.aplicaciones = aplicaciones;
         this.afiliados = afiliados;
     }
 
@@ -61,8 +64,9 @@ public class CuentaCorrienteServicioImpl implements CuentaCorrienteServicio {
     }
 
     /**
-     * Aplica los pagos con remanente (saldo a favor) a los comprobantes pendientes, del más antiguo al más nuevo.
-     * Se llama al registrar un pago y al generar una cuota nueva (para consumir pagos a cuenta).
+     * Aplica los créditos disponibles del grupo (pagos con remanente y notas de crédito sin aplicar) a los
+     * comprobantes pendientes, del más antiguo al más nuevo. Se llama al registrar un pago, al emitir una
+     * nota de crédito y al generar una cuota nueva (para consumir lo que quedó a favor).
      *
      * @param soloPagoId si no es null, solo imputa ese pago
      * @return importe imputado en esta llamada
@@ -73,28 +77,17 @@ public class CuentaCorrienteServicioImpl implements CuentaCorrienteServicio {
         if (pendientes.isEmpty()) {
             return BigDecimal.ZERO;
         }
-        Map<Long, LocalDate> fechasPago = new HashMap<>();
-        Map<Long, BigDecimal> remanentes = remanentesDePagos(titularId, fechasPago);
         BigDecimal total = BigDecimal.ZERO;
         int idx = 0;
-        for (Map.Entry<Long, BigDecimal> e : remanentes.entrySet()) {
-            Long pagoId = e.getKey();
-            if (soloPagoId != null && !soloPagoId.equals(pagoId)) {
+        for (Credito cr : creditosDisponibles(titularId)) {
+            if (soloPagoId != null && !(cr.esPago() && soloPagoId.equals(cr.id()))) {
                 continue;
             }
-            BigDecimal disponible = e.getValue();
+            BigDecimal disponible = cr.disponible();
             while (disponible.signum() > 0 && idx < pendientes.size()) {
                 Comprobante c = pendientes.get(idx);
                 BigDecimal aplicar = disponible.min(c.getSaldo());
-                c.aplicarPago(aplicar);
-                Imputacion imp = new Imputacion();
-                imp.setPagoId(pagoId);
-                imp.setComprobanteId(c.getId());
-                imp.setImporte(aplicar);
-                // Fecha de imputación: la del pago, o la de emisión si el pago a cuenta es anterior a la cuota.
-                LocalDate fechaPago = fechasPago.getOrDefault(pagoId, LocalDate.now());
-                imp.setFecha(fechaPago.isBefore(c.getFechaEmision()) ? c.getFechaEmision() : fechaPago);
-                imputaciones.save(imp);
+                registrarAplicacion(cr, c, aplicar);
                 disponible = disponible.subtract(aplicar);
                 total = total.add(aplicar);
                 if (c.getSaldo().signum() <= 0) {
@@ -108,25 +101,77 @@ public class CuentaCorrienteServicioImpl implements CuentaCorrienteServicio {
         return total;
     }
 
-    /** Pagos del titular con importe todavía no imputado, en orden cronológico. */
-    private Map<Long, BigDecimal> remanentesDePagos(Long titularId, Map<Long, LocalDate> fechasPago) {
-        Map<Long, BigDecimal> remanentes = new java.util.LinkedHashMap<>();
+    /** Aplica una nota de crédito a un comprobante puntual (el que corrige), hasta su saldo. */
+    @Transactional
+    public BigDecimal aplicarNotaA(Comprobante nota, Comprobante destino, BigDecimal importe) {
+        BigDecimal aplicar = importe.min(destino.getSaldo());
+        if (aplicar.signum() <= 0 || Comprobante.ANULADO.equals(destino.getEstado())) {
+            return BigDecimal.ZERO;
+        }
+        registrarAplicacion(new Credito(false, nota.getId(), nota.getFechaEmision(), importe), destino, aplicar);
+        return aplicar;
+    }
+
+    private void registrarAplicacion(Credito cr, Comprobante c, BigDecimal aplicar) {
+        c.aplicarPago(aplicar);
+        // Fecha: la del crédito, o la de emisión del comprobante si el crédito es anterior.
+        LocalDate fecha = cr.fecha().isBefore(c.getFechaEmision()) ? c.getFechaEmision() : cr.fecha();
+        if (cr.esPago()) {
+            Imputacion imp = new Imputacion();
+            imp.setPagoId(cr.id());
+            imp.setComprobanteId(c.getId());
+            imp.setImporte(aplicar);
+            imp.setFecha(fecha);
+            imputaciones.save(imp);
+        } else {
+            AplicacionCredito ap = new AplicacionCredito();
+            ap.setNotaCreditoId(cr.id());
+            ap.setComprobanteId(c.getId());
+            ap.setImporte(aplicar);
+            ap.setFecha(fecha);
+            aplicaciones.save(ap);
+        }
+    }
+
+    /** Crédito a favor del grupo: un pago o una nota de crédito con importe todavía sin aplicar. */
+    private record Credito(boolean esPago, Long id, LocalDate fecha, BigDecimal disponible) {
+    }
+
+    /** Pagos y notas de crédito del titular con importe sin aplicar, en orden cronológico. */
+    private List<Credito> creditosDisponibles(Long titularId) {
+        Map<String, Credito> creditos = new java.util.LinkedHashMap<>();
         for (MovimientoCuentaCorriente m : movimientos.findByAfiliadoIdOrderByFechaAscIdAsc(titularId)) {
-            if (MovimientoCuentaCorriente.HABER.equals(m.getTipo()) && m.getPagoId() != null) {
-                remanentes.merge(m.getPagoId(), m.getImporte(), BigDecimal::add);
-                fechasPago.put(m.getPagoId(), m.getFecha());
+            if (!MovimientoCuentaCorriente.HABER.equals(m.getTipo())) {
+                continue;
             }
+            boolean pago = m.getPagoId() != null;
+            Long id = pago ? m.getPagoId() : m.getComprobanteId();
+            if (id == null) {
+                continue;
+            }
+            creditos.merge((pago ? "P" : "N") + id, new Credito(pago, id, m.getFecha(), m.getImporte()),
+                    (a, b) -> new Credito(a.esPago(), a.id(), a.fecha(), a.disponible().add(b.disponible())));
         }
-        if (remanentes.isEmpty()) {
-            return remanentes;
+        if (creditos.isEmpty()) {
+            return List.of();
         }
-        Map<Long, BigDecimal> imputadoPorPago = new HashMap<>();
-        for (Imputacion i : imputaciones.findByPagoIdIn(remanentes.keySet())) {
-            imputadoPorPago.merge(i.getPagoId(), i.getImporte(), BigDecimal::add);
+        Map<String, BigDecimal> usado = new HashMap<>();
+        List<Long> pagos = creditos.values().stream().filter(Credito::esPago).map(Credito::id).toList();
+        List<Long> notas = creditos.values().stream().filter(c -> !c.esPago()).map(Credito::id).toList();
+        if (!pagos.isEmpty()) {
+            imputaciones.findByPagoIdIn(pagos).forEach(i -> usado.merge("P" + i.getPagoId(), i.getImporte(), BigDecimal::add));
         }
-        remanentes.replaceAll((pagoId, importe) -> importe.subtract(imputadoPorPago.getOrDefault(pagoId, BigDecimal.ZERO)));
-        remanentes.values().removeIf(v -> v.signum() <= 0);
-        return remanentes;
+        if (!notas.isEmpty()) {
+            aplicaciones.findByNotaCreditoIdIn(notas).forEach(a -> usado.merge("N" + a.getNotaCreditoId(), a.getImporte(), BigDecimal::add));
+        }
+        List<Credito> res = new ArrayList<>();
+        creditos.forEach((k, c) -> {
+            BigDecimal resto = c.disponible().subtract(usado.getOrDefault(k, BigDecimal.ZERO));
+            if (resto.signum() > 0) {
+                res.add(new Credito(c.esPago(), c.id(), c.fecha(), resto));
+            }
+        });
+        return res;
     }
 
     @Override
@@ -161,8 +206,8 @@ public class CuentaCorrienteServicioImpl implements CuentaCorrienteServicio {
                     debe ? BigDecimal.ZERO : m.getImporte(), saldo, m.getComprobanteId(), m.getPagoId()));
         }
         List<ComprobanteResumenDto> comps = comprobantes.findByAfiliadoIdOrderByFechaEmisionDesc(titular.id()).stream()
-                .map(c -> new ComprobanteResumenDto(c.getId(), c.getNumero(), c.getPeriodo(), c.getFechaVencimiento(), c.getTotal(),
-                        c.getSaldo(), c.getEstado()))
+                .map(c -> new ComprobanteResumenDto(c.getId(), c.getTipo(), c.getNumero(), c.getPeriodo(), c.getFechaVencimiento(),
+                        c.getTotal(), c.getSaldo(), c.getEstado()))
                 .toList();
         BigDecimal deuda = comprobantes.vencidosImpagos(titular.id(), LocalDate.now()).stream()
                 .map(Comprobante::getSaldo).reduce(BigDecimal.ZERO, BigDecimal::add);

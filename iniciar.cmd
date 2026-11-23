@@ -30,7 +30,12 @@ echo Java %JAVA_VER% encontrado.
 echo Compilando y luego iniciando el sistema ^(la primera vez descarga Maven y las librerias, puede tardar unos minutos^)...
 echo Cuando aparezca "Sistema listo" abra http://localhost:8080
 echo.
-call "%~dp0mvnw.cmd" -q -DskipTests package
+rem Archivos de versiones anteriores que quedan si se descomprime un zip nuevo sobre la carpeta vieja
+if exist "%~dp0src\main\java\ar\org\cmm\comun\UsuarioDemoProvider.java" (
+  echo Se quita un archivo de una version anterior: src\main\java\ar\org\cmm\comun\UsuarioDemoProvider.java
+  del "%~dp0src\main\java\ar\org\cmm\comun\UsuarioDemoProvider.java"
+)
+call "%~dp0mvnw.cmd" -q -DskipTests clean package
 if errorlevel 1 (
   echo [ERROR] No se pudo compilar el proyecto.
   pause

@@ -58,8 +58,10 @@ public class PrestadorController {
         return prestadores.guardarPrestador(id, req);
     }
 
-    // Los valores convenidos son información comercial: solo roles de administración, liquidaciones e IT.
+    // Mesa de Entradas los consulta para emitir órdenes (decisión del equipo del 23/11); modificarlos sigue siendo
+    // de Administración, Liquidaciones e IT.
     @GetMapping("/{id}/valores")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.IT})
     public List<ValorVigenteDto> valores(@PathVariable Long id,
                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         return valores.valoresVigentes(id, fecha != null ? fecha : LocalDate.now());

@@ -3,7 +3,7 @@
 Prototipo de los **Sprints 1 y 2**:
 
 - **Sprint 1 (Afiliados y base de datos):** afiliados y grupo familiar, planes con nivel de cobertura, prestadores con valores convenidos, coseguro según plan, derivadoras e historia clínica.
-- **Sprint 2 (Facturación sin factura fiscal):** cuotas, cuenta corriente, cobranza por archivo .txt y por ventanilla, morosos y bloqueo, avisos por mail y exportación de asientos a FEBBO.
+- **Sprint 2 (Facturación sin factura fiscal):** cuotas, cuenta corriente, cobranza por archivo .txt y por ventanilla, morosos y bloqueo, avisos por mail y exportación de asientos al sistema contable.
 
 Stack del informe: **Java 17+ (compila en 17, recomendado 21) + Spring Boot 3.3 + MySQL 8**, con Flyway para las migraciones. El frontend es web (HTML, CSS y JavaScript con módulos ES, sin paso de compilación) y lo sirve la misma aplicación.
 
@@ -47,7 +47,7 @@ Para generar el .jar:
 
 **Windows con tildes o "ñ" en la ruta** (ej. `Tercer Año`): `spring-boot:run` puede fallar con *"no se ha encontrado o cargado la clase principal"*. Usar `iniciar.cmd` o el comando `package` + `java -jar` de arriba, que no tienen ese problema, o mover el proyecto a una ruta sin tildes (ej. `C:\proyectos\cmm-sistema-integral`).
 
-Abrir **http://localhost:8080**.
+Abrir **http://localhost:8080** e ingresar con uno de los usuarios de la sección [4. Login y roles](#4-login-y-roles) (por ejemplo `daniela` / `daniela2026`).
 
 | Dirección | Para qué |
 | --- | --- |
@@ -85,11 +85,12 @@ Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
 mvn test
 ```
 
-Son 9 pruebas:
+Son 28 pruebas:
 
 - lector de archivos de cobranza;
 - importador de planillas;
-- ciclo completo contra la base: coseguro, cuotas, idempotencia, importación con rechazos, recargo por mora, morosos y asientos balanceados.
+- ciclo completo contra la base: coseguro, cuotas, idempotencia, importación con rechazos, recargo por mora, morosos y asientos balanceados;
+- login, sesión, CSRF y roles (`SeguridadTest`).
 
 ---
 
@@ -102,10 +103,15 @@ Son 9 pruebas:
 | Prestadores y coseguro | Valores convenidos con vigencia e historial; importación del Excel del prestador; **simulador de coseguro por plan** | H12 |
 | Derivadoras | Obra social de origen del afiliado (sin facturar aportes) | H11 |
 | Cuotas | Actualización mensual por % **sin pedirla a sistemas**; simulación y generación masiva; recargo por mora automático; resumen de facturación | Dolor principal del relevamiento |
-| Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
-| Morosos | Listado con deuda y días de atraso, bloqueo manual con motivo, aviso por mail | H4 (regla automática pendiente) |
-| Exportación FEBBO | Asientos de cuotas y pagos a partir de la relación código de servicio → cuenta contable | H10 |
-| Configuración | Parámetros (vencimiento, tasa de recargo) y diseños de archivo de cobranza editables | — |
+| Cuotas › Valores de cuota | IPC mensual traído de la API del INDEC o cargado a mano, aplicado a los valores de cuota con confirmación (una vez por mes) | Revisión del 22/11 (T44) |
+| Afiliados › Cuenta corriente | Notas de crédito y débito internas para corregir errores (sobre un comprobante o sobre la deuda del grupo), con su cuenta contable y su asiento | Revisión del 22/11 (T46) |
+| Cuotas › Coseguros | Coseguros pendientes por integrante que se suman solos a la cuota del mes siguiente; carga manual (importe propio o calculado según la cobertura del plan); anulación con motivo; historial por mes de cuota | Revisión con el CMM del 22/11 (T42, T43) |
+| Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos, duplicados y control del pie del archivo (cantidad y total); diseño real de PagoMisCuentas (COB, 100 caracteres); pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
+| Morosos | **Proceso de mora:** desde el día 20 propone bloquear a quien no pagó (lo confirma un usuario) y lista los grupos con 3 o más cuotas impagas para darlos de baja **a mano** desde la ficha; listado de deudores con aviso por mail a todos o a los seleccionados y texto del aviso editable | H4, respuestas L10 y L12 (T51, T52) |
+| Cuotas (leyenda) | La cuota de quien tiene deuda vencida lleva una leyenda configurable de aviso de Clearing | Respuesta L11 (T50) |
+| Exportación contable | Asientos de cuotas, notas y pagos a partir de la relación código de servicio → cuenta contable, con **formato de archivo configurable** (columnas, separador, fecha, decimales) para cualquier sistema contable | H10, revisión del 22/11 (T48) |
+| Impresión | PDF para imprimir y Excel de estado de cuenta, comprobantes, deudores, resumen de facturación e historial de coseguros (`comun/reportes`, reutilizable por los demás frentes) | Revisión del 22/11 (T47) |
+| Configuración | Parámetros (vencimiento, tasa de recargo de la tasa activa del BNA), feriados para el vencimiento hábil y diseños de archivo de cobranza editables | Revisión del 22/11 (T45) |
 
 Archivos de ejemplo para probar en vivo (se descargan desde las mismas pantallas, en `static/ejemplos/`):
 
@@ -119,12 +125,13 @@ Archivos de ejemplo para probar en vivo (se descargan desde las mismas pantallas
 
 ```
 ar.org.cmm
-├── comun/            Auditoría, usuario actual (preparado para login), errores, numeradores
+├── comun/            Auditoría, usuario actual, errores, numeradores; reportes/ (PDF y Excel para todos los frentes)
+├── seguridad/        F1 · Login, usuarios, roles y sesión (Spring Security)
 ├── contratos/        Interfaces entre frentes: AfiliadoConsulta, BloqueoServicio, PlanConsulta,
-│                     CoseguroServicio, CuentaCorrienteServicio, PadronFiscalServicio
+│                     CoseguroServicio, CuentaCorrienteServicio, CargoCuotaServicio, PadronFiscalServicio
 ├── afiliados/        F1 · Núcleo y Afiliados
 ├── cobertura/        F2 · Planes, derivadoras, prestadores, valores, coseguro
-├── facturacion/      F3 · Cuotas, cuenta corriente, morosos, avisos, asientos FEBBO
+├── facturacion/      F3 · Cuotas, coseguros, notas, cuenta corriente, morosos, avisos, asientos contables
 ├── cobranza/         F4 · Archivos de entes de cobro, ventanilla, caja
 ├── historiaclinica/  F5 · (Órdenes y auditoría médica se suman en el Sprint 3)
 ├── tablero/          Indicadores de inicio (solo lectura)
@@ -134,23 +141,86 @@ ar.org.cmm
 Reglas que el código ya respeta:
 
 - **Ningún módulo usa clases internas de otro.** Solo se comunican por `contratos/`. Las referencias entre módulos se guardan por id (por ejemplo, `Comprobante.afiliadoId`).
-- **Cada frente numera sus migraciones en su rango:** núcleo `V001`, F1 `V1xx`, F2 `V2xx`, F3 `V3xx`, F4 `V4xx`, catálogos `V900`, demo `V950`. Está activo `out-of-order` para que no choquen entre sí.
+- **Cada frente numera sus migraciones en su rango:** núcleo `V001`, F1 `V1xx` (usuarios: `V101`), F2 `V2xx`, F3 `V3xx`, F4 `V4xx`, catálogos `V900`, demo `V950`. Está activo `out-of-order` para que no choquen entre sí.
+- **Coseguro de una orden → cuota (contrato `CargoCuotaServicio`, de F3 para F5):** al emitir la orden, F5 llama a `registrarCoseguro(afiliadoId, fecha, importe, concepto, nroOrden)`. Es idempotente por número de orden y el cargo va a la cuota del mes siguiente. Si la orden se anula antes de facturarse, `anularCoseguro(nroOrden, motivo)`; después, con nota de crédito.
 - **La API nunca expone entidades JPA:** usa DTOs (records). Los errores tienen un formato único (`ProblemDetail`), cuyo campo `detail` muestra el frontend.
 
 ---
 
-## 4. Login (preparado, no implementado)
+## 4. Login y roles
 
-- Todo el código obtiene el usuario con `UsuarioActualProvider`.
-- La implementación actual, `UsuarioDemoProvider`, toma el nombre del campo **"Operador"** de la barra superior (encabezado `X-Usuario`), así la auditoría ya registra nombres.
-- Los endpoints están marcados con `@RequiereRol({...})` según los roles del informe.
+Al abrir la aplicación se pide **usuario y contraseña**. Arriba a la derecha se ve el nombre de quien inició sesión (y se registra en la auditoría con su usuario) y el botón **Cerrar sesión**.
 
-Para activar Spring Security:
+- **Sesión:** cookie `HttpOnly` (con `SameSite=Strict`). Vence a las **6 horas sin actividad**, o antes si la persona cierra sesión (`server.servlet.session.timeout` en `application.yml`).
+- **Contraseñas:** se guardan solo como hash **BCrypt**. No hay bloqueo de cuenta por intentos fallidos (decisión del equipo por ahora).
+- **Roles:** cada endpoint declara quién puede usarlo con `@RequiereRol`; `seguridad/RolInterceptor` lo hace cumplir (la anotación del método manda sobre la de la clase). Sin permiso, la API responde 403 con un mensaje. El frontend oculta lo que el rol no puede usar (`static/js/permisos.js`; si cambia un `@RequiereRol`, actualizar ese archivo).
+- **CSRF:** el servidor deja la cookie `XSRF-TOKEN` y el frontend la devuelve en el encabezado `X-XSRF-TOKEN`.
+- La consola `/h2-console` (solo perfil demo) exige el rol `IT`.
 
-1. Agregar `spring-boot-starter-security`.
-2. Crear `UsuarioSpringSecurityProvider implements UsuarioActualProvider` con `@Primary`, que lea `SecurityContextHolder`.
-3. Reemplazar `@RequiereRol` por `@PreAuthorize("hasAnyRole(...)")` (búsqueda y reemplazo) y habilitar `@EnableMethodSecurity`.
-4. Servir todo por **HTTPS**, indispensable para el médico auditor remoto.
+### Usuarios de demostración
+
+Se cargan con los datos de demo (`db/demo/V952__usuarios_demo.sql` y `V953__perfiles_usuarios_demo.sql`). La contraseña es el usuario seguido del año:
+
+| Usuario | Contraseña | Nombre | Perfil | Roles internos |
+| --- | --- | --- | --- | --- |
+| `silvina` | `silvina2026` | Silvina | **Permiso total** | todos |
+| `gisela` | `gisela2026` | Gisela | **Facturación y Cobranza**: facturación, cobranza y datos del afiliado (consulta y edición) | LIQUIDACIONES |
+| `daniela` | `daniela2026` | Daniela | **Emisora de órdenes**: emisión de órdenes (módulo en construcción), datos del afiliado (consulta y edición) y carga de historia clínica | MESA_ENTRADAS |
+| `ludovico` | `ludovico2026` | Médico Auditor | **Médico auditor**: solo consulta de los datos del paciente (incluidas la historia clínica y la pestaña Auditoría); no edita | MEDICO_AUDITOR |
+
+La historia clínica la **ve** cualquier usuario con sesión; solo la **cargan** quienes tienen el rol `MESA_ENTRADAS` (la emisora y el permiso total).
+
+> Son solo para demostración. En producción **no** se aplica `db/demo`: los usuarios reales los carga el CMM.
+
+### Cargar un usuario real (sin pantalla de gestión de usuarios)
+
+Todavía no hay una pantalla para administrar usuarios. Mientras tanto se cargan por SQL, con la contraseña ya convertida a BCrypt (por ejemplo con cualquier generador BCrypt de costo 10, que produce un texto que empieza con `$2a$10$`):
+
+```sql
+INSERT INTO usuario (username, nombre, clave_hash, activo)
+VALUES ('usuario', 'Nombre Apellido', '<hash BCrypt>', TRUE);
+INSERT INTO usuario_rol (usuario_id, rol)
+SELECT id, 'ADMINISTRACION' FROM usuario WHERE username = 'usuario';
+```
+
+Roles válidos: `ADMINISTRACION`, `LIQUIDACIONES`, `MESA_ENTRADAS`, `MEDICO_AUDITOR`, `IT`. Para dar de baja a alguien: `UPDATE usuario SET activo = FALSE WHERE username = 'usuario';`.
+
+### HTTPS
+
+El sistema ya soporta HTTPS, pero **hace falta un certificado**, que el CMM todavía no tiene (ni dominio). Hasta entonces se sirve por HTTP, solo dentro de la red interna. HTTPS es indispensable para el acceso remoto del médico auditor.
+
+1. **Conseguir el certificado** (cuando el CMM tenga dominio, por ejemplo `sistema.ejemplo.org.ar`): lo emite una autoridad certificante (por ejemplo Let's Encrypt, o la que use IT). Se obtienen dos archivos: la cadena de certificados y la clave privada.
+2. **Convertirlos a un keystore PKCS12** (hay que tener `openssl` instalado):
+
+   ```bash
+   openssl pkcs12 -export -in fullchain.pem -inkey privkey.pem -out cmm.p12 -name cmm
+   ```
+
+   Pide una contraseña para el keystore: guardarla.
+3. **Arrancar con el perfil `https`** y estas variables de entorno (en PowerShell se usa `$env:NOMBRE="valor"`):
+
+   | Variable | Valor |
+   | --- | --- |
+   | `SPRING_PROFILES_ACTIVE` | `mysql,https` (el perfil `https` se suma a otro) |
+   | `SSL_KEYSTORE` | ruta del keystore, por ejemplo `file:C:/cmm/cmm.p12` |
+   | `SSL_KEYSTORE_PASSWORD` | la contraseña del paso 2 |
+   | `SSL_KEYSTORE_TYPE` | opcional, por defecto `PKCS12` |
+   | `PORT` | opcional, por ejemplo `8443` |
+
+4. Abrir `https://<dominio>:<puerto>`. Con el perfil `https` la cookie de sesión pasa a ser `Secure`.
+5. **Renovación:** los certificados vencen; al renovarlo, repetir el paso 2 y reiniciar la aplicación.
+
+**Para probar HTTPS en una PC sin certificado real** (el navegador mostrará una advertencia, es lo esperado):
+
+```bash
+keytool -genkeypair -alias cmm -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore cmm-prueba.p12 -validity 365 -dname "CN=localhost"
+```
+
+y usar ese archivo como `SSL_KEYSTORE`. No usar un certificado de prueba en producción.
+
+## Rollback
+
+Cómo volver a la versión anterior (aplicación, base de datos y comprobantes) si un despliegue sale mal, con el ensayo paso a paso para Docker: [`docs/rollback.md`](docs/rollback.md).
 
 ---
 
@@ -161,7 +231,9 @@ Para activar Spring Security:
 | Facturación electrónica AFIP / ALTEA | **Fuera de alcance por ahora (H2).** La cuota se emite como comprobante interno no fiscal. | Decidir más adelante entre generar el archivo para ALTEA o usar el web service de AFIP (WSFEv1). |
 | Padrón AFIP (validar CUIT y condición ante IVA) | Interfaz `PadronFiscalServicio` lista; la implementación actual responde vacío. | Certificado digital del CMM, autorizar `ws_sr_padron_a13` en AFIP, autenticación WSAA y pruebas en homologación. |
 | Archivo de PagoMisCuentas | Funciona con un **diseño de archivo provisorio** y configurable desde pantalla. | Un archivo real de ejemplo (anonimizado) para ajustar las posiciones en Configuración. |
-| FEBBO | Exporta un CSV provisorio (`nro_asiento;fecha;cuenta;debe;haber;concepto;referencia`). | Diseño de importación de FEBBO y plan de cuentas. Las cuentas actuales dicen "A CONFIRMAR". |
+| Sistema contable (FEBBO u otro) | Exporta un archivo de asientos con formato configurable desde la pantalla (por defecto `lote;nro_asiento;fecha;cuenta;debe;haber;concepto;referencia`) y se puede exportar un solo lote. Lotes según el CMM: factura A = 1, nota de débito A = 2, nota de crédito A = 3, factura B = 6, nota de crédito B = 8. | Lote de nota de débito B y de cobranzas; condición frente al IVA del titular para emitir A. |
+| IPC del INDEC (actualización de la cuota) | Cuotas › Valores de cuota › "Traer de la API del INDEC" consulta la [API de series de tiempo](https://apis.datos.gob.ar/series/api/series/?ids=145.3_INGNACNAL_DICI_M_15) (índice de nivel general) y calcula la variación mensual. Liquidaciones confirma vigencia y planes antes de aplicarla. URL configurable con `IPC_URL`. | Que el servidor tenga salida a internet hacia `apis.datos.gob.ar`. Sin conexión, el IPC se carga a mano. |
+| Feriados (vencimiento hábil) | Configuración › Feriados: 2026 viene cargado; "Importar desde internet" usa la API de ArgentinaDatos (`FERIADOS_URL`). | Salida a internet hacia `api.argentinadatos.com`, o cargar los feriados a mano (incluidos los provinciales). |
 | Correo (avisos de deuda) | Funciona con cualquier SMTP. Sin `SMTP_HOST` el aviso se registra como `SIN_SMTP` y se puede ver en pantalla. | Servidor o cuenta de correo del CMM. |
 
 Datos marcados **"A CONFIRMAR"** en `V900__catalogos_iniciales.sql`:

@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /** Lee un archivo de cobranza según su {@link LayoutArchivo}. No accede a la base. */
@@ -19,6 +20,30 @@ public class LectorArchivoCobro {
         public boolean valido() {
             return error == null;
         }
+    }
+
+    /** Datos del registro de pie informados por el ente. */
+    public record PieLeido(int cantidad, BigDecimal total) {
+    }
+
+    /** Busca el registro de pie según el diseño. Vacío si el diseño no lo define o el archivo no lo trae. */
+    public Optional<PieLeido> leerPie(String contenido, LayoutArchivo layout) {
+        if (!layout.tienePie()) {
+            return Optional.empty();
+        }
+        for (String linea : contenido.replace("﻿", "").split("\r?\n")) {
+            if (!linea.startsWith(layout.getPiePrefijo())) {
+                continue;
+            }
+            try {
+                int cantidad = Integer.parseInt(tramo(linea, layout.getPieCantidadPos(), layout.getPieCantidadLargo()).trim());
+                BigDecimal total = importe(tramo(linea, layout.getPieTotalPos(), layout.getPieTotalLargo()), layout.getImporteDecimalesImpl());
+                return Optional.of(new PieLeido(cantidad, total));
+            } catch (RuntimeException e) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
     }
 
     public List<RegistroLeido> leer(String contenido, LayoutArchivo layout) {

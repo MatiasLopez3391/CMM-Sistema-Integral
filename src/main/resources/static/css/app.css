@@ -42,8 +42,18 @@ h3 { font-size: 15px; margin: 18px 0 8px; }
 .barra { display: flex; align-items: center; gap: 12px; background: var(--blanco); border-bottom: 1px solid var(--borde); padding: 10px 20px; position: sticky; top: 0; z-index: 5; }
 .barra h1 { font-size: 18px; margin: 0; flex: 1; }
 .btn-menu { display: none; border: 0; background: none; font-size: 20px; cursor: pointer; }
-.operador { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--texto-suave); }
-.operador input { width: 170px; }
+.sesion { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--texto-suave); }
+.sesion #sesionNombre { font-weight: 600; color: var(--texto); }
+[hidden] { display: none !important; }
+.login { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.login-caja { background: var(--blanco); border: 1px solid var(--borde); border-radius: var(--radio); box-shadow: var(--sombra); padding: 28px; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
+.login-caja .marca-logo { background: var(--azul); color: #fff; }
+.clave-caja { position: relative; display: flex; }
+.clave-caja input { flex: 1; padding-right: 40px; }
+.clave-ojo { position: absolute; right: 2px; top: 0; bottom: 0; width: 38px; border: 0; background: none; color: var(--texto-suave); cursor: pointer; display: grid; place-items: center; border-radius: 6px; }
+.clave-ojo:hover, .clave-ojo:focus-visible { color: var(--azul); }
+.login-caja h2 { margin: 0; }
+.login-caja .ayuda { margin: 0; }
 .vista { padding: 20px; max-width: 1280px; width: 100%; }
 
 .tarjeta { background: var(--blanco); border: 1px solid var(--borde); border-radius: var(--radio); box-shadow: var(--sombra); padding: 16px; margin-bottom: 16px; }
@@ -138,5 +148,5 @@ tfoot td { font-weight: 650; background: #f7f9fc; }
   .sidebar.abierto { left: 0; }
   .btn-menu { display: block; }
   .vista { padding: 14px 16px; }
-  .operador input { width: 120px; }
+  .sesion #sesionNombre { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

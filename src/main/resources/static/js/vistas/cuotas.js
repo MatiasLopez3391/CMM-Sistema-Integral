@@ -1,13 +1,14 @@
 import { api, fmt } from '../api.js';
-import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, cargando, conBoton } from '../ui.js';
+import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, cargando, conBoton, badgeEstado, botonesDescarga, enlazarDescarga } from '../ui.js';
 import { verComprobante } from './afiliados.js';
+import { dialogoCoseguro, dialogoAnularCoseguro } from './coseguro-dialogo.js';
 
 export async function render(el, params) {
   const tab = params[0] || 'generar';
   el.innerHTML = html`
     <div class="tarjeta" style="padding-bottom:0">
       <div class="tabs" id="tabs">
-        ${raw([['generar', 'Generar cuotas del período'], ['valores', 'Valores de cuota'], ['resumen', 'Resumen de facturación']]
+        ${raw([['generar', 'Generar cuotas del período'], ['coseguros', 'Coseguros'], ['valores', 'Valores de cuota'], ['resumen', 'Resumen de facturación']]
           .map(([k, t]) => `<button data-tab="${k}" class="${k === tab ? 'activo' : ''}">${t}</button>`).join(''))}
       </div>
     </div>
@@ -18,6 +19,7 @@ export async function render(el, params) {
   try {
     if (tab === 'valores') await tabValores(c);
     else if (tab === 'resumen') await tabResumen(c, params[1]);
+    else if (tab === 'coseguros') await tabCoseguros(c);
     else await tabGenerar(c);
   } catch (e) { error(e); }
 }
@@ -32,18 +34,25 @@ function siguientePeriodo(periodos) {
 }
 
 async function tabGenerar(c) {
-  const periodos = await api.get('/api/facturacion/periodos');
+  const [periodos, parametros] = await Promise.all([api.get('/api/facturacion/periodos'), api.get('/api/facturacion/parametros')]);
+  const tasa = parametros.find(p => p.clave === 'mora.tasa_recargo_porcentaje');
   c.innerHTML = html`
     <div class="tarjeta">
       <h2>Generación masiva de cuotas</h2>
-      <p class="ayuda">Por cada grupo familiar activo: cuota del plan × integrantes, más adicionales (Subsidio Alta Complejidad) y recargo por mora
-      sobre la deuda vencida. Se emite un comprobante interno (no fiscal) al titular. Se recomienda simular antes de generar; los grupos que ya tienen la cuota del período se omiten.</p>
+      <p class="ayuda">Por cada grupo familiar activo: cuota del plan × integrantes, más adicionales (Subsidio Alta Complejidad),
+      los coseguros pendientes de cada integrante y el recargo por mora sobre el valor de las cuotas vencidas (sin recargo sobre recargo). Se emite un comprobante interno (no fiscal) al titular. Se recomienda simular antes de generar; los grupos que ya tienen la cuota del período se omiten.</p>
       <form id="form" class="fila">
         <div class="campo chico"><label>Período</label><input type="month" name="periodo" value="${siguientePeriodo(periodos)}" required></div>
         <div class="campo chico"><label>Fecha de emisión</label><input type="date" name="fechaEmision"></div>
         <button type="button" class="btn" id="simular">Simular</button>
         <button type="button" class="btn primario" id="generar">Generar</button>
       </form>
+      <div class="cinta info fila" style="margin-top:10px;align-items:center">
+        <span>Recargo por mora: tasa activa del Banco Nación vigente al generar.</span>
+        <label>Tasa (%) <input id="tasa" value="${tasa ? tasa.valor : ''}" style="width:80px"></label>
+        <button type="button" class="btn chico" id="guardarTasa">Actualizar tasa</button>
+        <span class="suave">Revísela en bna.com.ar antes de generar.</span>
+      </div>
       <p class="suave" style="margin-top:8px">Períodos ya generados: ${periodos.length ? periodos.map(fmt.periodo).join(', ') : 'ninguno'}</p>
     </div>
     <div id="resultado"></div>`;
@@ -57,6 +66,12 @@ async function tabGenerar(c) {
       if (generar) toast(`${r.generados} comprobantes generados`, 'ok');
     } catch (e) { error(e); }
   });
+  $('#guardarTasa', c).addEventListener('click', e => conBoton(e.target, async () => {
+    try {
+      await api.put('/api/facturacion/parametros/mora.tasa_recargo_porcentaje', { valor: $('#tasa', c).value.replace(',', '.') });
+      toast('Tasa de recargo actualizada', 'ok');
+    } catch (er) { error(er); }
+  }));
   $('#simular', c).addEventListener('click', e => ejecutar(false, e.target));
   $('#generar', c).addEventListener('click', e => ejecutar(true, e.target));
 }
@@ -69,6 +84,7 @@ function mostrarResultado(cont, r) {
       <div class="grid-kpi">
         <div class="kpi"><div class="kpi-etiqueta">Comprobantes</div><div class="kpi-valor">${r.generados}</div><div class="kpi-nota">${r.omitidosYaExistian} ya existían</div></div>
         <div class="kpi"><div class="kpi-etiqueta">Cuotas + adicionales</div><div class="kpi-valor">${fmt.moneda(r.totalCuotas)}</div></div>
+        <div class="kpi"><div class="kpi-etiqueta">Coseguros</div><div class="kpi-valor">${fmt.moneda(r.totalCoseguros)}</div></div>
         <div class="kpi"><div class="kpi-etiqueta">Recargos por mora</div><div class="kpi-valor">${fmt.moneda(r.totalRecargos)}</div><div class="kpi-nota">${r.conRecargo} grupo(s)</div></div>
         <div class="kpi"><div class="kpi-etiqueta">Total</div><div class="kpi-valor">${fmt.moneda(r.totalGeneral)}</div><div class="kpi-nota">vence ${fmt.fecha(r.fechaVencimiento)}</div></div>
       </div>
@@ -80,6 +96,7 @@ function mostrarResultado(cont, r) {
         { t: 'Integrantes', cls: 'num', v: p => p.integrantes },
         { t: 'Cuota', cls: 'num', v: p => fmt.moneda(p.cuota) },
         { t: 'Adicionales', cls: 'num', v: p => fmt.moneda(p.adicionales) },
+        { t: 'Coseguros', cls: 'num', v: p => p.coseguros > 0 ? `${fmt.moneda(p.coseguros)} <span class="suave">(${p.cantidadCoseguros})</span>` : '' },
         { t: 'Deuda vencida', cls: 'num', v: p => p.deudaVencida > 0 ? fmt.moneda(p.deudaVencida) : '' },
         { t: 'Recargo', cls: 'num', v: p => p.recargo > 0 ? fmt.moneda(p.recargo) : '' },
         { t: 'Total', cls: 'num', v: p => `<b>${fmt.moneda(p.total)}</b>` }
@@ -87,10 +104,112 @@ function mostrarResultado(cont, r) {
     </div>`;
 }
 
+// ---------------------------------------------------------------- Coseguros (T42, T43)
+const aMes = p => `${p.substring(0, 4)}-${p.substring(4, 6)}`;
+const sumarMeses = (mes, n) => {
+  const [a, m] = mes.split('-').map(Number);
+  const d = new Date(a, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+async function tabCoseguros(c) {
+  const actual = fmt.hoy().substring(0, 7);
+  const filtro = { desde: sumarMeses(actual, -5), hasta: sumarMeses(actual, 1), estado: '' };
+  c.innerHTML = html`
+    <div class="tarjeta">
+      <div class="tarjeta-titulo">
+        <h2>Coseguros a cobrar en la cuota</h2>
+        <button class="btn primario" id="nuevo">Cargar coseguro</button>
+      </div>
+      <p class="ayuda">Cada orden emitida deja su coseguro pendiente a nombre del integrante; al generar la cuota del mes siguiente se suma
+      solo al comprobante del grupo. Si la orden no se usó ni se anuló, el coseguro se cobra igual. Mientras el módulo de órdenes no esté
+      activo, los coseguros se cargan desde aquí.</p>
+      <form id="filtro" class="fila">
+        <div class="campo chico"><label>Cuota desde</label><input type="month" name="desde" value="${filtro.desde}"></div>
+        <div class="campo chico"><label>Cuota hasta</label><input type="month" name="hasta" value="${filtro.hasta}"></div>
+        <div class="campo chico"><label>Estado</label><select name="estado">
+          <option value="">Todos</option><option value="PENDIENTE">Pendientes</option><option value="FACTURADO">Facturados</option><option value="ANULADO">Anulados</option>
+        </select></div>
+        <button class="btn">Ver</button>
+        ${raw(botonesDescarga('cos'))}
+      </form>
+    </div>
+    <div id="resCos"></div>`;
+  const cargar = async () => {
+    const cont = $('#resCos', c);
+    cargando(cont);
+    try {
+      const f = datosForm($('#filtro', c));
+      const r = await api.get('/api/facturacion/coseguros', { desde: f.desde, hasta: f.hasta, estado: f.estado });
+      cont.innerHTML = html`
+        <div class="tarjeta">
+          <div class="grid-kpi">
+            <div class="kpi"><div class="kpi-etiqueta">Pendientes de facturar</div><div class="kpi-valor">${fmt.moneda(r.totalPendiente)}</div></div>
+            <div class="kpi"><div class="kpi-etiqueta">Facturados en cuotas</div><div class="kpi-valor">${fmt.moneda(r.totalFacturado)}</div></div>
+            <div class="kpi"><div class="kpi-etiqueta">Coseguros</div><div class="kpi-valor">${r.cargos.filter(x => x.estado !== 'ANULADO').length}</div></div>
+          </div>
+          <h3>Por mes de cuota</h3>
+          ${raw(tabla([
+            { t: 'Cuota', v: x => fmt.periodo(x.periodo) },
+            { t: 'Coseguros', cls: 'num', v: x => x.cantidad },
+            { t: 'Pendiente', cls: 'num', v: x => fmt.moneda(x.pendiente) },
+            { t: 'Facturado', cls: 'num', v: x => fmt.moneda(x.facturado) },
+            { t: 'Anulado', cls: 'num', v: x => x.anulado > 0 ? fmt.moneda(x.anulado) : '' }
+          ], r.porPeriodo, { vacio: 'Sin coseguros en el rango.' }))}
+          <h3>Detalle</h3>
+          ${raw(tablaCoseguros(r.cargos, true))}
+        </div>`;
+      enlazarAcciones(cont, r.cargos, cargar);
+    } catch (e) { error(e); }
+  };
+  $('#filtro', c).addEventListener('submit', e => { e.preventDefault(); cargar(); });
+  enlazarDescarga(c, 'cos', '/api/facturacion/imprimir/coseguros', () => datosForm($('#filtro', c)), api);
+  $('#nuevo', c).addEventListener('click', () => dialogoCoseguro({ alTerminar: cargar }));
+  await cargar();
+}
+
+/** Tabla de coseguros (también la usa la ficha del afiliado). */
+export function tablaCoseguros(cargos, conTitular) {
+  return tabla([
+    { t: 'Cuota', v: x => fmt.periodo(x.periodoDestino) },
+    ...(conTitular ? [{ t: 'Grupo', v: x => `<a href="#/afiliados/${x.titularId}/cuenta">${esc(x.titularNombre)}</a>` }] : []),
+    { t: 'Integrante', v: x => `<span class="mono suave">${esc(x.afiliadoNro)}</span> ${esc(x.afiliadoNombre)}` },
+    { t: 'Fecha', v: x => fmt.fecha(x.fecha) },
+    { t: 'Concepto', v: x => esc(x.concepto) + (x.origenRef ? ` <span class="suave">· orden ${esc(x.origenRef)}</span>` : '') },
+    { t: 'Importe', cls: 'num', v: x => fmt.moneda(x.importe) },
+    { t: 'Estado', v: x => badgeEstado(x.estado) + (x.comprobanteNumero ? ` <a href="#" data-comp="${x.comprobanteId}" class="mono">${esc(x.comprobanteNumero)}</a>` : '')
+        + (x.motivoAnulacion ? `<div class="suave">${esc(x.motivoAnulacion)}</div>` : '') },
+    { t: 'Cargó', v: x => `<span class="suave">${esc(x.origen === 'ORDEN' ? 'Orden' : (x.usuario || ''))}</span>` },
+    { t: '', cls: 'derecha', v: x => x.estado === 'PENDIENTE' ? `<button class="btn chico" data-anular="${x.id}">Anular</button>` : '' }
+  ], cargos, { vacio: 'No hay coseguros.' });
+}
+
+export function enlazarAcciones(cont, cargos, recargar) {
+  $$('[data-comp]', cont).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp); }));
+  $$('[data-anular]', cont).forEach(b => b.addEventListener('click', () => {
+    dialogoAnularCoseguro(cargos.find(x => String(x.id) === b.dataset.anular), recargar);
+  }));
+}
+
 // ---------------------------------------------------------------- Valores de cuota
 async function tabValores(c) {
-  const valores = await api.get('/api/facturacion/valores-cuota');
+  const [valores, ipc] = await Promise.all([api.get('/api/facturacion/valores-cuota'), api.get('/api/facturacion/ipc')]);
   c.innerHTML = html`
+    <div class="tarjeta">
+      <div class="tarjeta-titulo">
+        <h2>IPC mensual (INDEC)</h2>
+        <div class="fila"><button class="btn" id="ipcManual">Cargar a mano</button><button class="btn primario" id="ipcTraer">Traer de la API del INDEC</button></div>
+      </div>
+      <p class="ayuda">La cuota se actualiza por la variación mensual del IPC. El sistema la consulta en la API de series de tiempo del Estado nacional
+      (o se carga a mano) y Liquidaciones confirma la vigencia y los planes antes de aplicarla. Cada mes se aplica una sola vez.</p>
+      ${raw(tabla([
+        { t: 'Mes medido', v: i => fmt.periodo(i.periodo) },
+        { t: 'Variación', cls: 'num', v: i => `<b>${fmt.pct(i.variacion)}</b>` },
+        { t: 'Origen', v: i => i.origen === 'API' ? 'API del INDEC' : `Carga manual <span class="suave">(${esc(i.usuario || '')})</span>` },
+        { t: 'Aplicado', v: i => i.aplicadoVigencia ? `<span class="badge ok">Vigente desde ${fmt.fecha(i.aplicadoVigencia)}</span>` : '<span class="badge aviso">Sin aplicar</span>' },
+        { t: '', cls: 'derecha', v: i => i.aplicadoVigencia ? '' : `<button class="btn chico primario" data-ipc="${i.periodo}">Aplicar a las cuotas</button>` }
+      ], ipc.slice(0, 12), { vacio: 'Todavía no hay valores de IPC. Tráigalos de la API o cárguelos a mano.' }))}
+    </div>
     <div class="tarjeta">
       <div class="tarjeta-titulo">
         <h2>Valor de la cuota por integrante</h2>
@@ -105,6 +224,50 @@ async function tabValores(c) {
         { t: 'Historial', v: v => v.historial.map(h => `<div class="suave">${fmt.fecha(h.vigenteDesde)} · ${fmt.moneda(h.importe)} · ${esc(h.motivo || '')} (${esc(h.usuario || '')})</div>`).join('') }
       ], valores))}
     </div>`;
+  $('#ipcTraer', c).addEventListener('click', e => conBoton(e.target, async () => {
+    try {
+      const r = await api.post('/api/facturacion/ipc/traer');
+      toast(`IPC actualizado: ${r.agregados} mes(es) nuevos; último publicado ${fmt.periodo(r.ultimoPeriodo)}`, 'ok');
+      tabValores(c);
+    } catch (er) { error(er); }
+  }));
+  $('#ipcManual', c).addEventListener('click', () => {
+    const m = modal('Cargar IPC a mano', `
+      <form class="form-grid">
+        <div class="campo"><label>Mes medido *</label><input type="month" name="periodo" required></div>
+        <div class="campo"><label>Variación mensual (%) *</label><input name="variacion" data-tipo="num" placeholder="Ej.: 2,3" required></div>
+      </form>
+      <p class="ayuda">Dato publicado por el INDEC (variación del nivel general respecto del mes anterior).</p>
+      <div class="acciones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ok">Guardar</button></div>`);
+    $('#ok', m.el).addEventListener('click', e => conBoton(e.target, async () => {
+      try { await api.post('/api/facturacion/ipc', datosForm($('form', m.el))); m.cerrar(); toast('IPC guardado', 'ok'); tabValores(c); } catch (er) { error(er); }
+    }));
+  });
+  $$('[data-ipc]', c).forEach(b => b.addEventListener('click', () => {
+    const i = ipc.find(x => x.periodo === b.dataset.ipc);
+    const h = fmt.hoy();
+    let [a, mm] = h.substring(0, 7).split('-').map(Number); mm++; if (mm > 12) { mm = 1; a++; }
+    const vig = `${a}-${String(mm).padStart(2, '0')}-01`;
+    const m = modal(`Aplicar IPC ${fmt.periodo(i.periodo)}: ${fmt.pct(i.variacion)}`, `
+      <form class="form-grid">
+        <div class="campo"><label>Nuevos valores vigentes desde *</label><input type="date" name="vigenteDesde" value="${vig}" required></div>
+      </form>
+      <h3>Planes alcanzados</h3>
+      <div>${valores.map(v => `<label style="display:inline-flex;gap:6px;margin:0 14px 6px 0"><input type="checkbox" class="pl" value="${v.planId}" checked> ${esc(v.planCodigo)}</label>`).join('')}</div>
+      <div class="cinta aviso" style="margin-top:10px">Se crea una nueva vigencia por plan con el valor actual + ${fmt.pct(i.variacion)}. Revise la fecha: las cuotas de ese mes en adelante usan los valores nuevos.</div>
+      <div id="res"></div>
+      <div class="acciones"><button class="btn" data-cerrar>Cerrar</button><button class="btn primario" id="ok">Confirmar y aplicar</button></div>`);
+    $('#ok', m.el).addEventListener('click', e => conBoton(e.target, async () => {
+      try {
+        const d = datosForm($('form', m.el));
+        d.planIds = $$('.pl', m.el).filter(x => x.checked).map(x => Number(x.value));
+        const r = await api.post(`/api/facturacion/ipc/${i.periodo}/aplicar`, d);
+        $('#res', m.el).innerHTML = `<div class="cinta ok">${r.planesActualizados} plan(es) actualizados<br>${r.detalle.map(esc).join('<br>')}</div>`;
+        e.target.remove();
+        tabValores(c);
+      } catch (er) { error(er); }
+    }));
+  }));
   $('#actualizar', c).addEventListener('click', () => {
     const m = modal('Actualizar cuotas por porcentaje', `
       <form class="form-grid">
@@ -154,7 +317,8 @@ async function tabResumen(c, periodoSel) {
   c.innerHTML = html`
     <div class="tarjeta">
       <div class="tarjeta-titulo"><h2>Resumen de facturación</h2>
-        <div class="campo chico"><select id="selPeriodo">${raw(opciones(periodos.map(p => ({ id: p, nombre: fmt.periodo(p) })), periodo))}</select></div></div>
+        <div class="fila">${raw(botonesDescarga('res'))}
+        <div class="campo chico"><select id="selPeriodo">${raw(opciones(periodos.map(p => ({ id: p, nombre: fmt.periodo(p) })), periodo))}</select></div></div></div>
       <div class="grid-kpi">
         <div class="kpi"><div class="kpi-etiqueta">Comprobantes</div><div class="kpi-valor">${r.comprobantes}</div></div>
         <div class="kpi"><div class="kpi-etiqueta">Facturado</div><div class="kpi-valor">${fmt.moneda(r.total)}</div></div>
@@ -177,6 +341,7 @@ async function tabResumen(c, periodoSel) {
         { t: 'Pendiente', cls: 'num', v: x => fmt.moneda(x.pendiente) }
       ], r.porPlan))}
     </div>`;
+  enlazarDescarga(c, 'res', '/api/facturacion/imprimir/resumen', () => ({ periodo }), api);
   $('#selPeriodo', c).addEventListener('change', e => { location.hash = `#/cuotas/resumen/${e.target.value}`; });
 }
 

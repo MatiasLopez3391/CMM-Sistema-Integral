@@ -67,7 +67,7 @@ export function badgeEstado(estado) {
   const mapa = {
     ACTIVO: 'ok', BAJA: '', PAGADO: 'ok', PENDIENTE: 'aviso', PARCIAL: 'aviso', ANULADO: '',
     IMPUTADO: 'ok', RECHAZADO: 'error', CONFIRMADO: 'ok', PREVISUALIZADO: 'info', DESCARTADO: '',
-    ENVIADA: 'ok', SIN_SMTP: 'aviso', SIN_EMAIL: 'aviso', ERROR: 'error', BLOQUEO: 'error', DESBLOQUEO: 'ok'
+    ENVIADA: 'ok', FACTURADO: 'ok', EMITIDA: 'info', SIN_SMTP: 'aviso', SIN_EMAIL: 'aviso', ERROR: 'error', BLOQUEO: 'error', DESBLOQUEO: 'ok'
   };
   return `<span class="badge ${mapa[estado] ?? ''}">${esc(estado)}</span>`;
 }
@@ -93,6 +93,18 @@ export function opciones(lista, valorSel, { valor = 'id', texto = 'nombre', vaci
     ops.push(`<option value="${esc(v)}" ${String(v) === String(valorSel ?? '') ? 'selected' : ''}>${esc(t)}</option>`);
   });
   return ops.join('');
+}
+
+/** Botones "PDF" y "Excel" para descargar la versión imprimible de una pantalla. */
+export function botonesDescarga(id) {
+  return `<span class="fila" style="gap:6px"><button type="button" class="btn chico" data-descarga="${id}" data-formato="pdf">Imprimir PDF</button><button type="button" class="btn chico" data-descarga="${id}" data-formato="xlsx">Excel</button></span>`;
+}
+
+/** Enlaza los botones de botonesDescarga(id) con la descarga: params() devuelve los filtros vigentes. */
+export function enlazarDescarga(raiz, id, url, params = () => ({}), api) {
+  raiz.querySelectorAll(`[data-descarga="${id}"]`).forEach(b => b.addEventListener('click', () => conBoton(b, async () => {
+    try { await api.descargar(url, { ...params(), formato: b.dataset.formato }); } catch (e) { error(e); }
+  })));
 }
 
 export function cargando(el) {
