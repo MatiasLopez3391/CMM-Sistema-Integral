@@ -107,6 +107,10 @@ class OrdenIntegracionTest {
         assertEquals("EMITIDA", historial.get(0).getEstadoNuevo());
 
         // 8. Verificar que F3 registro el coseguro.
+        assertTrue(
+        orden.getTotalCoseguro().signum() > 0,
+        "La orden debe generar un coseguro positivo para verificar F3"
+        );
         if (orden.getTotalCoseguro().signum() > 0) {
 
             var cargo = cargoRepository
