@@ -1,4 +1,5 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCIONES } from '../permisos.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, cargando, conBoton } from '../ui.js';
 
 export async function render(el) {
@@ -6,7 +7,7 @@ export async function render(el) {
   const lista = await api.get('/api/cobertura/derivadoras');
   el.innerHTML = html`
     <div class="tarjeta">
-      <div class="tarjeta-titulo"><h2>Derivadoras (obra social de origen)</h2><button class="btn primario" id="nuevo">+ Nueva derivadora</button></div>
+      <div class="tarjeta-titulo"><h2>Derivadoras (obra social de origen)</h2>${raw(tieneRol(ACCIONES.editarCobertura) ? '<button class="btn primario" id="nuevo">+ Nueva derivadora</button>' : '')}</div>
       <p class="ayuda">Obras sociales que derivan afiliados monotributistas. Se vinculan al afiliado como "obra social de origen".</p>
       ${raw(tabla([
         { t: 'Nombre', v: d => `<b>${esc(d.nombre)}</b>` },
@@ -17,6 +18,7 @@ export async function render(el) {
         { t: 'Estado', v: d => d.activa ? '<span class="badge ok">Activa</span>' : '<span class="badge">Inactiva</span>' }
       ], lista, { clic: true }))}
     </div>`;
+  if (!tieneRol(ACCIONES.editarCobertura)) return; // solo consulta
   $('#nuevo', el).addEventListener('click', () => editar(null));
   $$('tbody tr', el).forEach(tr => tr.addEventListener('click', () => editar(lista[tr.dataset.i])));
 }

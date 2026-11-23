@@ -1,4 +1,5 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCIONES } from '../permisos.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, cargando, conBoton } from '../ui.js';
 
 let prestadorSel = null;
@@ -11,20 +12,20 @@ export async function render(el) {
     <div class="tarjeta">
       <div class="tarjeta-titulo">
         <h2>Prestadores</h2>
-        <div class="fila"><button class="btn" id="nuevaPractica">+ Práctica</button><button class="btn primario" id="nuevo">+ Prestador</button></div>
+        ${raw(tieneRol(ACCIONES.editarCobertura) ? '<div class="fila"><button class="btn" id="nuevaPractica">+ Práctica</button><button class="btn primario" id="nuevo">+ Prestador</button></div>' : '')}
       </div>
       <p class="ayuda">Valores convenidos por práctica, con vigencia. El coseguro del afiliado se calcula según la cobertura de su plan
       (valor × (1 − % de cobertura)).</p>
       <div class="fila">
         <div class="campo"><label>Prestador</label><select id="selPrestador">${raw(opciones(prestadores, prestadorSel, { texto: p => `${p.nombre} (${p.tipo})` }))}</select></div>
         <div class="campo chico"><label>Valores vigentes al</label><input type="date" id="fecha" value="${fmt.hoy()}"></div>
-        <button class="btn" id="editarPrestador">Editar prestador</button>
+        ${raw(tieneRol(ACCIONES.editarCobertura) ? '<button class="btn" id="editarPrestador">Editar prestador</button>' : '')}
       </div>
     </div>
     <div class="tarjeta">
       <div class="tarjeta-titulo">
         <h2>Valores convenidos</h2>
-        <div class="fila"><button class="btn" id="cargarValor">+ Valor</button><button class="btn primario" id="importar">Importar planilla (Excel/CSV)</button></div>
+        ${raw(tieneRol(ACCIONES.editarCobertura) ? '<div class="fila"><button class="btn" id="cargarValor">+ Valor</button><button class="btn primario" id="importar">Importar planilla (Excel/CSV)</button></div>' : '')}
       </div>
       <div id="valores"></div>
     </div>
@@ -71,11 +72,13 @@ export async function render(el) {
   $('#selPrestador', el).addEventListener('change', e => { prestadorSel = Number(e.target.value); cargarValores().then(simular); });
   $('#fecha', el).addEventListener('change', () => cargarValores().then(simular));
   $('#selPractica', el).addEventListener('change', simular);
-  $('#nuevo', el).addEventListener('click', () => editarPrestador(null));
-  $('#editarPrestador', el).addEventListener('click', () => editarPrestador(prestadores.find(p => p.id === prestadorSel)));
-  $('#nuevaPractica', el).addEventListener('click', nuevaPractica);
-  $('#cargarValor', el).addEventListener('click', () => cargarValor(cargarValores));
-  $('#importar', el).addEventListener('click', () => importar(cargarValores));
+  if (tieneRol(ACCIONES.editarCobertura)) {
+    $('#nuevo', el).addEventListener('click', () => editarPrestador(null));
+    $('#editarPrestador', el).addEventListener('click', () => editarPrestador(prestadores.find(p => p.id === prestadorSel)));
+    $('#nuevaPractica', el).addEventListener('click', nuevaPractica);
+    $('#cargarValor', el).addEventListener('click', () => cargarValor(cargarValores));
+    $('#importar', el).addEventListener('click', () => importar(cargarValores));
+  }
   await cargarValores();
   const primera = $('#selPractica', el).options[1];
   if (primera) { $('#selPractica', el).value = primera.value; simular(); }

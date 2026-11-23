@@ -139,6 +139,13 @@ class SeguridadTest {
         mvc.perform(get("/api/cobertura/planes").session(s)).andExpect(status().isOk());
         mvc.perform(get("/api/cobertura/derivadoras").session(s)).andExpect(status().isOk());
         mvc.perform(get("/api/cobranza/medios").session(s)).andExpect(status().isOk());
+        // consulta prestadores, valores y coseguros para emitir órdenes, sin poder modificarlos
+        mvc.perform(get("/api/cobertura/prestadores").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/cobertura/practicas").session(s)).andExpect(status().isOk());
+        mvc.perform(get("/api/cobertura/prestadores/1/valores").session(s)).andExpect(status().isOk());
+        mvc.perform(post("/api/cobertura/prestadores").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/cobertura/planes").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/cobertura/prestadores/1/valores").session(s).with(csrf()).contentType(JSON).content(VACIO)).andExpect(status().isForbidden());
         // pero no facturación ni cobranza
         mvc.perform(get("/api/facturacion/periodos").session(s)).andExpect(status().isForbidden());
         mvc.perform(get("/api/cobranza/caja").session(s)).andExpect(status().isForbidden());

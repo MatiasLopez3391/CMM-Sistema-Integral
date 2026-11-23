@@ -1,4 +1,5 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCIONES } from '../permisos.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, cargando, conBoton } from '../ui.js';
 
 const RUBROS = ['CONSULTA', 'ENFERMERIA', 'LABORATORIO', 'IMAGENES', 'MEDICAMENTOS', 'INTERNACION', 'ODONTOLOGIA', 'OTROS'];
@@ -8,7 +9,7 @@ export async function render(el) {
   const planes = await api.get('/api/cobertura/planes');
   el.innerHTML = html`
     <div class="tarjeta">
-      <div class="tarjeta-titulo"><h2>Planes y nivel de cobertura</h2><button class="btn primario" id="nuevo">+ Nuevo plan</button></div>
+      <div class="tarjeta-titulo"><h2>Planes y nivel de cobertura</h2>${raw(tieneRol(ACCIONES.editarCobertura) ? '<button class="btn primario" id="nuevo">+ Nuevo plan</button>' : '')}</div>
       <p class="ayuda">El nivel de cobertura (70/100, 80/100, 100%) define qué parte de la práctica paga la obra social; el resto es el coseguro del afiliado.
       Las excepciones por rubro permiten, por ejemplo, cubrir medicamentos al 40% en un plan 80/100.</p>
       ${raw(tabla([
@@ -20,6 +21,7 @@ export async function render(el) {
         { t: 'Estado', v: p => p.activo ? '<span class="badge ok">Activo</span>' : '<span class="badge">Inactivo</span>' }
       ], planes, { clic: true }))}
     </div>`;
+  if (!tieneRol(ACCIONES.editarCobertura)) return; // solo consulta
   $('#nuevo', el).addEventListener('click', () => editar(null));
   $$('tbody tr', el).forEach(tr => tr.addEventListener('click', () => editar(planes[tr.dataset.i])));
 }
