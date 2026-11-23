@@ -34,18 +34,25 @@ function siguientePeriodo(periodos) {
 }
 
 async function tabGenerar(c) {
-  const periodos = await api.get('/api/facturacion/periodos');
+  const [periodos, parametros] = await Promise.all([api.get('/api/facturacion/periodos'), api.get('/api/facturacion/parametros')]);
+  const tasa = parametros.find(p => p.clave === 'mora.tasa_recargo_porcentaje');
   c.innerHTML = html`
     <div class="tarjeta">
       <h2>Generación masiva de cuotas</h2>
       <p class="ayuda">Por cada grupo familiar activo: cuota del plan × integrantes, más adicionales (Subsidio Alta Complejidad),
-      los coseguros pendientes de cada integrante y el recargo por mora sobre la deuda vencida. Se emite un comprobante interno (no fiscal) al titular. Se recomienda simular antes de generar; los grupos que ya tienen la cuota del período se omiten.</p>
+      los coseguros pendientes de cada integrante y el recargo por mora sobre el valor de las cuotas vencidas (sin recargo sobre recargo). Se emite un comprobante interno (no fiscal) al titular. Se recomienda simular antes de generar; los grupos que ya tienen la cuota del período se omiten.</p>
       <form id="form" class="fila">
         <div class="campo chico"><label>Período</label><input type="month" name="periodo" value="${siguientePeriodo(periodos)}" required></div>
         <div class="campo chico"><label>Fecha de emisión</label><input type="date" name="fechaEmision"></div>
         <button type="button" class="btn" id="simular">Simular</button>
         <button type="button" class="btn primario" id="generar">Generar</button>
       </form>
+      <div class="cinta info fila" style="margin-top:10px;align-items:center">
+        <span>Recargo por mora: tasa activa del Banco Nación vigente al generar.</span>
+        <label>Tasa (%) <input id="tasa" value="${tasa ? tasa.valor : ''}" style="width:80px"></label>
+        <button type="button" class="btn chico" id="guardarTasa">Actualizar tasa</button>
+        <span class="suave">Revísela en bna.com.ar antes de generar.</span>
+      </div>
       <p class="suave" style="margin-top:8px">Períodos ya generados: ${periodos.length ? periodos.map(fmt.periodo).join(', ') : 'ninguno'}</p>
     </div>
     <div id="resultado"></div>`;
@@ -59,6 +66,12 @@ async function tabGenerar(c) {
       if (generar) toast(`${r.generados} comprobantes generados`, 'ok');
     } catch (e) { error(e); }
   });
+  $('#guardarTasa', c).addEventListener('click', e => conBoton(e.target, async () => {
+    try {
+      await api.put('/api/facturacion/parametros/mora.tasa_recargo_porcentaje', { valor: $('#tasa', c).value.replace(',', '.') });
+      toast('Tasa de recargo actualizada', 'ok');
+    } catch (er) { error(er); }
+  }));
   $('#simular', c).addEventListener('click', e => ejecutar(false, e.target));
   $('#generar', c).addEventListener('click', e => ejecutar(true, e.target));
 }

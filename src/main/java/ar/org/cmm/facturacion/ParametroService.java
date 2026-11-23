@@ -22,6 +22,7 @@ public class ParametroService {
     public static final String LEYENDA_DEUDA = "cuota.leyenda_deuda";
     public static final String AVISO_ASUNTO = "aviso.deuda.asunto";
     public static final String AVISO_TEXTO = "aviso.deuda.texto";
+    public static final String LETRA_POR_DEFECTO = "contable.letra_por_defecto";
     public static final String EXPORT_COLUMNAS = "contable.export.columnas";
     public static final String EXPORT_SEPARADOR = "contable.export.separador";
     public static final String EXPORT_FORMATO_FECHA = "contable.export.formato_fecha";
@@ -52,6 +53,12 @@ public class ParametroService {
         return texto(clave).replace("\\n", "\n");
     }
 
+    /** Valor opcional: vacío si el parámetro no existe. */
+    @Transactional(readOnly = true)
+    public String textoOpcional(String clave) {
+        return repo.findById(clave).map(Parametro::getValor).orElse("");
+    }
+
     public int entero(String clave) {
         return Integer.parseInt(texto(clave).trim());
     }
@@ -72,6 +79,18 @@ public class ParametroService {
     }
 
     private void validar(String clave, String v) {
+        if (clave.startsWith("contable.lote.")) {
+            if (!v.equals("-") && !v.matches("\\d{1,4}")) {
+                throw new ReglaNegocioException("El lote debe ser un número (o - si ese comprobante no tiene lote).");
+            }
+            return;
+        }
+        if (clave.equals(LETRA_POR_DEFECTO)) {
+            if (!v.equalsIgnoreCase("A") && !v.equalsIgnoreCase("B")) {
+                throw new ReglaNegocioException("La letra debe ser A o B.");
+            }
+            return;
+        }
         try {
             switch (clave) {
                 case DIA_VENCIMIENTO -> {

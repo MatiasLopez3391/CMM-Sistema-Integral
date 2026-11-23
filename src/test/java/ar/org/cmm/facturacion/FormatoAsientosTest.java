@@ -14,8 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FormatoAsientosTest {
 
     private final List<Linea> lineas = List.of(
-            new Linea(1, LocalDate.of(2026, 11, 1), "1.1.03.01", new BigDecimal("1500.5"), BigDecimal.ZERO, "Cuota 11/2026; GÓMEZ", "CI-1"),
-            new Linea(1, LocalDate.of(2026, 11, 1), "4.1.01.01", BigDecimal.ZERO, new BigDecimal("1500.5"), "Cuota 11/2026; GÓMEZ", "CI-1"));
+            new Linea("6", 1, LocalDate.of(2026, 11, 1), "1.1.03.01", new BigDecimal("1500.5"), BigDecimal.ZERO, "Cuota 11/2026; GÓMEZ", "CI-1"),
+            new Linea("6", 1, LocalDate.of(2026, 11, 1), "4.1.01.01", BigDecimal.ZERO, new BigDecimal("1500.5"), "Cuota 11/2026; GÓMEZ", "CI-1"));
 
     @Test
     void formatoPorDefecto() {
@@ -26,6 +26,12 @@ class FormatoAsientosTest {
                 1;01/11/2026;1.1.03.01;1500.50;0.00;Cuota 11/2026, GÓMEZ;CI-1
                 1;01/11/2026;4.1.01.01;0.00;1500.50;Cuota 11/2026, GÓMEZ;CI-1
                 """);
+    }
+
+    @Test
+    void conLaColumnaLote() {
+        Formato f = new Formato(List.of("lote", "nro_asiento", "cuenta", "debe", "haber"), ";", "dd/MM/yyyy", ".", false, "csv");
+        assertThat(ExportacionAsientosService.renderizar(lineas, f)).startsWith("6;1;1.1.03.01;1500.50;0.00\n");
     }
 
     @Test

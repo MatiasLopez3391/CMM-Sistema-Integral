@@ -28,7 +28,7 @@ import java.util.Map;
 public class ExportacionAsientosService {
 
     /** Columnas disponibles. "importe" es el valor sin signo y "dh" dice D (debe) o H (haber), para sistemas que lo piden así. */
-    public static final List<String> COLUMNAS = List.of("nro_asiento", "fecha", "cuenta", "debe", "haber", "importe", "dh", "concepto",
+    public static final List<String> COLUMNAS = List.of("lote", "nro_asiento", "fecha", "cuenta", "debe", "haber", "importe", "dh", "concepto",
             "referencia");
 
     private final ComprobanteRepository comprobantes;
@@ -48,8 +48,8 @@ public class ExportacionAsientosService {
     }
 
     /** Una línea de asiento, antes de darle formato. */
-    public record Linea(int nroAsiento, LocalDate fecha, String cuenta, BigDecimal debe, BigDecimal haber, String concepto,
-                        String referencia) {
+    public record Linea(String lote, int nroAsiento, LocalDate fecha, String cuenta, BigDecimal debe, BigDecimal haber,
+                        String concepto, String referencia) {
     }
 
     /** Formato vigente del archivo. */
@@ -59,20 +59,32 @@ public class ExportacionAsientosService {
 
     @Transactional
     public Exportacion exportar(LocalDate desde, LocalDate hasta) {
+        return exportar(desde, hasta, null);
+    }
+
+    /** @param lote si no es null, solo los asientos de ese lote del sistema contable */
+    @Transactional
+    public Exportacion exportar(LocalDate desde, LocalDate hasta, String lote) {
         if (hasta.isBefore(desde)) {
             throw new ReglaNegocioException("La fecha 'hasta' es anterior a 'desde'.");
         }
         Formato formato = formato();
         List<Linea> lineas = asientos(desde, hasta);
-        int asientos = lineas.isEmpty() ? 0 : lineas.get(lineas.size() - 1).nroAsiento();
+        if (lote != null && !lote.isBlank()) {
+            lineas = lineas.stream().filter(l -> lote.trim().equals(l.lote())).toList();
+        }
+        int asientos = (int) lineas.stream().map(Linea::nroAsiento).distinct().count();
         if (asientos == 0) {
             DateTimeFormatter f = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            throw new ReglaNegocioException("No hay comprobantes ni pagos entre " + desde.format(f) + " y " + hasta.format(f) + ".");
+            throw new ReglaNegocioException("No hay comprobantes ni pagos" + (lote != null && !lote.isBlank() ? " del lote " + lote : "")
+                    + " entre " + desde.format(f) + " y " + hasta.format(f) + ".");
         }
         BigDecimal debe = lineas.stream().map(Linea::debe).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal haber = lineas.stream().map(Linea::haber).reduce(BigDecimal.ZERO, BigDecimal::add);
-        auditoria.registrar("asientos", 0L, "EXPORTACION_CONTABLE", desde + " a " + hasta + ": " + asientos + " asientos");
-        String nombre = "asientos-contables-" + desde + "-a-" + hasta + "." + formato.extension();
+        auditoria.registrar("asientos", 0L, "EXPORTACION_CONTABLE", desde + " a " + hasta
+                + (lote != null && !lote.isBlank() ? " lote " + lote : "") + ": " + asientos + " asientos");
+        String nombre = "asientos-contables-" + (lote != null && !lote.isBlank() ? "lote" + lote.trim() + "-" : "") + desde + "-a-" + hasta
+                + "." + formato.extension();
         return new Exportacion(nombre, renderizar(lineas, formato), asientos, debe, haber);
     }
 
@@ -82,13 +94,15 @@ public class ExportacionAsientosService {
         Formato f = formato();
         LocalDate d = LocalDate.of(2026, 11, 1);
         List<Linea> ej = List.of(
-                new Linea(1, d, "1.1.03.01", new BigDecimal("190527.67"), BigDecimal.ZERO, "Cuota 11/2026", "CI-00000001"),
-                new Linea(1, d, "4.1.01.01", BigDecimal.ZERO, new BigDecimal("188649.67"), "Cuota 11/2026", "CI-00000001"),
-                new Linea(1, d, "4.1.01.02", BigDecimal.ZERO, new BigDecimal("1878.00"), "Cuota 11/2026", "CI-00000001"));
+                new Linea(lote(Comprobante.TIPO_CUOTA), 1, d, "1.1.03.01", new BigDecimal("190527.67"), BigDecimal.ZERO, "Cuota 11/2026", "CI-00000001"),
+                new Linea(lote(Comprobante.TIPO_CUOTA), 1, d, "4.1.01.01", BigDecimal.ZERO, new BigDecimal("188649.67"), "Cuota 11/2026", "CI-00000001"),
+                new Linea(lote(Comprobante.TIPO_CUOTA), 1, d, "4.1.01.02", BigDecimal.ZERO, new BigDecimal("1878.00"), "Cuota 11/2026", "CI-00000001"));
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("formato", f);
         res.put("columnasDisponibles", COLUMNAS);
         res.put("ejemplo", renderizar(ej, f));
+        res.put("letra", letra());
+        res.put("lotes", lotes());
         return res;
     }
 
@@ -107,6 +121,7 @@ public class ExportacionAsientosService {
 
     List<Linea> asientos(LocalDate desde, LocalDate hasta) {
         String cuentaDeudores = parametros.texto(ParametroService.CUENTA_DEUDORES);
+        String lotePagos = sinGuion(parametros.textoOpcional("contable.lote.PAGO"));
         List<Linea> res = new ArrayList<>();
         int nro = 0;
         for (Comprobante c : comprobantes.findByFechaEmisionBetweenOrderByFechaEmisionAscIdAsc(desde, hasta)) {
@@ -114,6 +129,7 @@ public class ExportacionAsientosService {
                 continue;
             }
             nro++;
+            String lote = lote(c.getTipo());
             String concepto = switch (c.getTipo()) {
                 case Comprobante.TIPO_NOTA_CREDITO -> "Nota de crédito " + c.getNumero();
                 case Comprobante.TIPO_NOTA_DEBITO -> "Nota de débito " + c.getNumero();
@@ -126,14 +142,14 @@ public class ExportacionAsientosService {
             if (c.esNotaCredito()) {
                 // Nota de crédito: asiento inverso (Debe la cuenta del concepto corregido / Haber deudores)
                 for (Map.Entry<String, BigDecimal> e : porCuenta.entrySet()) {
-                    res.add(new Linea(nro, c.getFechaEmision(), e.getKey(), e.getValue(), BigDecimal.ZERO, concepto, c.getNumero()));
+                    res.add(new Linea(lote, nro, c.getFechaEmision(), e.getKey(), e.getValue(), BigDecimal.ZERO, concepto, c.getNumero()));
                 }
-                res.add(new Linea(nro, c.getFechaEmision(), cuentaDeudores, BigDecimal.ZERO, c.getTotal(), concepto, c.getNumero()));
+                res.add(new Linea(lote, nro, c.getFechaEmision(), cuentaDeudores, BigDecimal.ZERO, c.getTotal(), concepto, c.getNumero()));
                 continue;
             }
-            res.add(new Linea(nro, c.getFechaEmision(), cuentaDeudores, c.getTotal(), BigDecimal.ZERO, concepto, c.getNumero()));
+            res.add(new Linea(lote, nro, c.getFechaEmision(), cuentaDeudores, c.getTotal(), BigDecimal.ZERO, concepto, c.getNumero()));
             for (Map.Entry<String, BigDecimal> e : porCuenta.entrySet()) {
-                res.add(new Linea(nro, c.getFechaEmision(), e.getKey(), BigDecimal.ZERO, e.getValue(), concepto, c.getNumero()));
+                res.add(new Linea(lote, nro, c.getFechaEmision(), e.getKey(), BigDecimal.ZERO, e.getValue(), concepto, c.getNumero()));
             }
         }
         for (MovimientoCuentaCorriente m : movimientos.findByTipoAndFechaBetweenAndPagoIdIsNotNullOrderByFechaAscIdAsc(
@@ -143,10 +159,38 @@ public class ExportacionAsientosService {
             }
             nro++;
             String ref = "PAGO-" + m.getPagoId();
-            res.add(new Linea(nro, m.getFecha(), m.getCuentaContrapartida(), m.getImporte(), BigDecimal.ZERO, m.getConcepto(), ref));
-            res.add(new Linea(nro, m.getFecha(), cuentaDeudores, BigDecimal.ZERO, m.getImporte(), m.getConcepto(), ref));
+            res.add(new Linea(lotePagos, nro, m.getFecha(), m.getCuentaContrapartida(), m.getImporte(), BigDecimal.ZERO, m.getConcepto(), ref));
+            res.add(new Linea(lotePagos, nro, m.getFecha(), cuentaDeudores, BigDecimal.ZERO, m.getImporte(), m.getConcepto(), ref));
         }
         return res;
+    }
+
+    /**
+     * Lote del sistema contable según el tipo de comprobante y su letra. Por ahora todos los afiliados llevan la letra
+     * por defecto (B, consumidor final); la A necesita la condición frente al IVA del titular (pendiente en F1).
+     */
+    String lote(String tipoComprobante) {
+        return sinGuion(parametros.textoOpcional("contable.lote." + tipoComprobante + "." + letra()));
+    }
+
+    private String letra() {
+        String l = parametros.textoOpcional(ParametroService.LETRA_POR_DEFECTO);
+        return l.isBlank() ? "B" : l.trim().toUpperCase();
+    }
+
+    private Map<String, String> lotes() {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (String tipo : List.of(Comprobante.TIPO_CUOTA, Comprobante.TIPO_NOTA_DEBITO, Comprobante.TIPO_NOTA_CREDITO)) {
+            for (String letra : List.of("A", "B")) {
+                m.put(tipo + "." + letra, parametros.textoOpcional("contable.lote." + tipo + "." + letra));
+            }
+        }
+        m.put("PAGO", parametros.textoOpcional("contable.lote.PAGO"));
+        return m;
+    }
+
+    private static String sinGuion(String v) {
+        return v == null || v.isBlank() || v.trim().equals("-") ? "" : v.trim();
     }
 
     static String renderizar(List<Linea> lineas, Formato f) {
@@ -159,6 +203,7 @@ public class ExportacionAsientosService {
             List<String> valores = new ArrayList<>();
             for (String col : f.columnas()) {
                 valores.add(switch (col) {
+                    case "lote" -> l.lote() == null ? "" : l.lote();
                     case "nro_asiento" -> String.valueOf(l.nroAsiento());
                     case "fecha" -> l.fecha().format(fecha);
                     case "cuenta" -> l.cuenta();
