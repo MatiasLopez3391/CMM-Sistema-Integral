@@ -16,7 +16,7 @@ public final class CobranzaDtos {
 
     public record LoteDto(Long id, String medio, String nombreArchivo, String estado, int cantidadRegistros, int cantidadOk,
                           int cantidadRechazados, BigDecimal importeOk, LocalDateTime creadoEl, String creadoPor,
-                          LocalDateTime confirmadoEl, List<PagoDto> pagos) {
+                          LocalDateTime confirmadoEl, boolean pieControlado, List<PagoDto> pagos) {
     }
 
     public record PagoDto(Long id, Integer linea, String medio, Long afiliadoId, String nroAfiliado, String afiliado,
@@ -39,12 +39,14 @@ public final class CobranzaDtos {
                             String prefijoRegistro, int lineasEncabezado, int afiliadoPos, Integer afiliadoLargo,
                             int fechaPos, Integer fechaLargo, String fechaFormato, int importePos, Integer importeLargo,
                             int importeDecimalesImpl, Integer referenciaPos, Integer referenciaLargo, boolean provisorio,
-                            String observaciones) {
+                            String observaciones, String piePrefijo, Integer pieCantidadPos, Integer pieCantidadLargo,
+                            Integer pieTotalPos, Integer pieTotalLargo) {
         static LayoutDto de(LayoutArchivo l) {
             return new LayoutDto(l.getId(), l.getMedioCobro().getId(), l.getMedioCobro().getNombre(), l.getNombre(), l.getFormato(),
                     l.getDelimitador(), l.getPrefijoRegistro(), l.getLineasEncabezado(), l.getAfiliadoPos(), l.getAfiliadoLargo(),
                     l.getFechaPos(), l.getFechaLargo(), l.getFechaFormato(), l.getImportePos(), l.getImporteLargo(),
-                    l.getImporteDecimalesImpl(), l.getReferenciaPos(), l.getReferenciaLargo(), l.isProvisorio(), l.getObservaciones());
+                    l.getImporteDecimalesImpl(), l.getReferenciaPos(), l.getReferenciaLargo(), l.isProvisorio(), l.getObservaciones(),
+                    l.getPiePrefijo(), l.getPieCantidadPos(), l.getPieCantidadLargo(), l.getPieTotalPos(), l.getPieTotalLargo());
         }
     }
 }

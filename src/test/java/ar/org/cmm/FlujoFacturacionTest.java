@@ -1,6 +1,7 @@
 package ar.org.cmm;
 
 import ar.org.cmm.cobertura.CoseguroServicioImpl;
+import ar.org.cmm.cobranza.ArchivoPmcPrueba;
 import ar.org.cmm.cobranza.CobranzaDtos.LoteDto;
 import ar.org.cmm.cobranza.CobranzaService;
 import ar.org.cmm.contratos.AfiliadoConsulta;
@@ -105,9 +106,10 @@ class FlujoFacturacionTest {
     @Test
     @Order(3)
     void importaArchivoRechazaInvalidosEImputaPagos() {
-        String txt = "D13109000010020260909000069260400PMC202609000001\n"
-                + "D13109000080020260909000010000000PMC202609000002\n"
-                + "D13109999990020260909000001500000PMC202609000003\n";
+        String txt = ArchivoPmcPrueba.archivo(
+                ArchivoPmcPrueba.pago("131090000100", "PMC202609000001", "20260909", "692604.00"),
+                ArchivoPmcPrueba.pago("131090000800", "PMC202609000002", "20260909", "100000.00"),
+                ArchivoPmcPrueba.pago("131099999999", "PMC202609000003", "20260909", "15000.00"));
         LoteDto lote = cobranza.previsualizar(1L, new MockMultipartFile("archivo", "pmc.txt", "text/plain", txt.getBytes(StandardCharsets.UTF_8)));
         assertThat(lote.cantidadOk()).isEqualTo(2);
         assertThat(lote.cantidadRechazados()).isEqualTo(1);

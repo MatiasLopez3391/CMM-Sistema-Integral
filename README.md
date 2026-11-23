@@ -85,7 +85,7 @@ Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
 mvn test
 ```
 
-Son 22 pruebas:
+Son 28 pruebas:
 
 - lector de archivos de cobranza;
 - importador de planillas;
@@ -106,7 +106,7 @@ Son 22 pruebas:
 | Cuotas › Valores de cuota | IPC mensual traído de la API del INDEC o cargado a mano, aplicado a los valores de cuota con confirmación (una vez por mes) | Revisión del 22/11 (T44) |
 | Afiliados › Cuenta corriente | Notas de crédito y débito internas para corregir errores (sobre un comprobante o sobre la deuda del grupo), con su cuenta contable y su asiento | Revisión del 22/11 (T46) |
 | Cuotas › Coseguros | Coseguros pendientes por integrante que se suman solos a la cuota del mes siguiente; carga manual (importe propio o calculado según la cobertura del plan); anulación con motivo; historial por mes de cuota | Revisión con el CMM del 22/11 (T42, T43) |
-| Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
+| Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos, duplicados y control del pie del archivo (cantidad y total); diseño real de PagoMisCuentas (COB, 100 caracteres); pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
 | Morosos | **Proceso de mora:** desde el día 20 propone bloquear a quien no pagó (lo confirma un usuario) y lista los grupos con 3 o más cuotas impagas para darlos de baja **a mano** desde la ficha; listado de deudores con aviso por mail a todos o a los seleccionados y texto del aviso editable | H4, respuestas L10 y L12 (T51, T52) |
 | Cuotas (leyenda) | La cuota de quien tiene deuda vencida lleva una leyenda configurable de aviso de Clearing | Respuesta L11 (T50) |
 | Exportación contable | Asientos de cuotas, notas y pagos a partir de la relación código de servicio → cuenta contable, con **formato de archivo configurable** (columnas, separador, fecha, decimales) para cualquier sistema contable | H10, revisión del 22/11 (T48) |
