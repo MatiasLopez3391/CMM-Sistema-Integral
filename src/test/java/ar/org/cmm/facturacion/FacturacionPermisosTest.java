@@ -11,6 +11,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,5 +46,26 @@ class FacturacionPermisosTest {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/facturacion/coseguros").param("desde", "202601").param("hasta", "202612").session(ingresar("ludovico")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void liquidacionesDescargaElListadoDeDeudoresEnPdfYExcel() throws Exception {
+        MockHttpSession gisela = ingresar("gisela");
+        mvc.perform(get("/api/facturacion/imprimir/morosos").param("formato", "pdf").param("alDia", "2026-11-22").session(gisela))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"))
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("deudores-2026-11-22.pdf")));
+        mvc.perform(get("/api/facturacion/imprimir/morosos").param("formato", "xlsx").session(gisela))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString(".xlsx")));
+        mvc.perform(get("/api/facturacion/imprimir/morosos").session(ingresar("daniela"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void elFormatoDelArchivoContableSeVeConUnEjemplo() throws Exception {
+        mvc.perform(get("/api/facturacion/asientos/formato").session(ingresar("gisela")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.formato.separador").value(";"))
+                .andExpect(jsonPath("$.ejemplo").value(org.hamcrest.Matchers.startsWith("nro_asiento;fecha;cuenta;debe;haber")));
     }
 }

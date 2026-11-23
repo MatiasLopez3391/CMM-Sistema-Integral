@@ -3,7 +3,7 @@
 Prototipo de los **Sprints 1 y 2**:
 
 - **Sprint 1 (Afiliados y base de datos):** afiliados y grupo familiar, planes con nivel de cobertura, prestadores con valores convenidos, coseguro según plan, derivadoras e historia clínica.
-- **Sprint 2 (Facturación sin factura fiscal):** cuotas, cuenta corriente, cobranza por archivo .txt y por ventanilla, morosos y bloqueo, avisos por mail y exportación de asientos a FEBBO.
+- **Sprint 2 (Facturación sin factura fiscal):** cuotas, cuenta corriente, cobranza por archivo .txt y por ventanilla, morosos y bloqueo, avisos por mail y exportación de asientos al sistema contable.
 
 Stack del informe: **Java 17+ (compila en 17, recomendado 21) + Spring Boot 3.3 + MySQL 8**, con Flyway para las migraciones. El frontend es web (HTML, CSS y JavaScript con módulos ES, sin paso de compilación) y lo sirve la misma aplicación.
 
@@ -108,7 +108,8 @@ Son 22 pruebas:
 | Cuotas › Coseguros | Coseguros pendientes por integrante que se suman solos a la cuota del mes siguiente; carga manual (importe propio o calculado según la cobertura del plan); anulación con motivo; historial por mes de cuota | Revisión con el CMM del 22/11 (T42, T43) |
 | Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
 | Morosos | Listado con deuda y días de atraso, bloqueo manual con motivo, aviso por mail | H4 (regla automática pendiente) |
-| Exportación FEBBO | Asientos de cuotas y pagos a partir de la relación código de servicio → cuenta contable | H10 |
+| Exportación contable | Asientos de cuotas, notas y pagos a partir de la relación código de servicio → cuenta contable, con **formato de archivo configurable** (columnas, separador, fecha, decimales) para cualquier sistema contable | H10, revisión del 22/11 (T48) |
+| Impresión | PDF para imprimir y Excel de estado de cuenta, comprobantes, deudores, resumen de facturación e historial de coseguros (`comun/reportes`, reutilizable por los demás frentes) | Revisión del 22/11 (T47) |
 | Configuración | Parámetros (vencimiento, tasa de recargo de la tasa activa del BNA), feriados para el vencimiento hábil y diseños de archivo de cobranza editables | Revisión del 22/11 (T45) |
 
 Archivos de ejemplo para probar en vivo (se descargan desde las mismas pantallas, en `static/ejemplos/`):
@@ -123,13 +124,13 @@ Archivos de ejemplo para probar en vivo (se descargan desde las mismas pantallas
 
 ```
 ar.org.cmm
-├── comun/            Auditoría, usuario actual, errores, numeradores
+├── comun/            Auditoría, usuario actual, errores, numeradores; reportes/ (PDF y Excel para todos los frentes)
 ├── seguridad/        F1 · Login, usuarios, roles y sesión (Spring Security)
 ├── contratos/        Interfaces entre frentes: AfiliadoConsulta, BloqueoServicio, PlanConsulta,
 │                     CoseguroServicio, CuentaCorrienteServicio, CargoCuotaServicio, PadronFiscalServicio
 ├── afiliados/        F1 · Núcleo y Afiliados
 ├── cobertura/        F2 · Planes, derivadoras, prestadores, valores, coseguro
-├── facturacion/      F3 · Cuotas, cuenta corriente, morosos, avisos, asientos FEBBO
+├── facturacion/      F3 · Cuotas, coseguros, notas, cuenta corriente, morosos, avisos, asientos contables
 ├── cobranza/         F4 · Archivos de entes de cobro, ventanilla, caja
 ├── historiaclinica/  F5 · (Órdenes y auditoría médica se suman en el Sprint 3)
 ├── tablero/          Indicadores de inicio (solo lectura)
@@ -229,7 +230,7 @@ Cómo volver a la versión anterior (aplicación, base de datos y comprobantes) 
 | Facturación electrónica AFIP / ALTEA | **Fuera de alcance por ahora (H2).** La cuota se emite como comprobante interno no fiscal. | Decidir más adelante entre generar el archivo para ALTEA o usar el web service de AFIP (WSFEv1). |
 | Padrón AFIP (validar CUIT y condición ante IVA) | Interfaz `PadronFiscalServicio` lista; la implementación actual responde vacío. | Certificado digital del CMM, autorizar `ws_sr_padron_a13` en AFIP, autenticación WSAA y pruebas en homologación. |
 | Archivo de PagoMisCuentas | Funciona con un **diseño de archivo provisorio** y configurable desde pantalla. | Un archivo real de ejemplo (anonimizado) para ajustar las posiciones en Configuración. |
-| FEBBO | Exporta un CSV provisorio (`nro_asiento;fecha;cuenta;debe;haber;concepto;referencia`). | Diseño de importación de FEBBO y plan de cuentas. Las cuentas actuales dicen "A CONFIRMAR". |
+| Sistema contable (FEBBO u otro) | Exporta un archivo de asientos con formato configurable desde la pantalla (por defecto `nro_asiento;fecha;cuenta;debe;haber;concepto;referencia`). | Un ejemplo del archivo que importa hoy el sistema contable y el plan de cuentas. |
 | IPC del INDEC (actualización de la cuota) | Cuotas › Valores de cuota › "Traer de la API del INDEC" consulta la [API de series de tiempo](https://apis.datos.gob.ar/series/api/series/?ids=145.3_INGNACNAL_DICI_M_15) (índice de nivel general) y calcula la variación mensual. Liquidaciones confirma vigencia y planes antes de aplicarla. URL configurable con `IPC_URL`. | Que el servidor tenga salida a internet hacia `apis.datos.gob.ar`. Sin conexión, el IPC se carga a mano. |
 | Feriados (vencimiento hábil) | Configuración › Feriados: 2026 viene cargado; "Importar desde internet" usa la API de ArgentinaDatos (`FERIADOS_URL`). | Salida a internet hacia `api.argentinadatos.com`, o cargar los feriados a mano (incluidos los provinciales). |
 | Correo (avisos de deuda) | Funciona con cualquier SMTP. Sin `SMTP_HOST` el aviso se registra como `SIN_SMTP` y se puede ver en pantalla. | Servidor o cuenta de correo del CMM. |

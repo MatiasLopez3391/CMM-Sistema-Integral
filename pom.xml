@@ -21,6 +21,8 @@
         <java.version>17</java.version>
         <springdoc.version>2.6.0</springdoc.version>
         <poi.version>5.3.0</poi.version>
+        <!-- PDF de reportes y comprobantes (licencia LGPL/MPL) -->
+        <openpdf.version>1.4.2</openpdf.version>
         <!-- 1.18.36: compatible con JDK 17 a 23 (la que trae Boot 3.3.5 no soporta JDK 23) -->
         <lombok.version>1.18.36</lombok.version>
     </properties>
@@ -75,6 +77,11 @@
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>${openpdf.version}</version>
         </dependency>
 
         <!-- Documentación de la API (contratos entre frentes) -->

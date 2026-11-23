@@ -1,5 +1,5 @@
 import { api, fmt } from '../api.js';
-import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
+import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, badgeEstado, badgeBloqueado, cargando, conBoton, botonesDescarga, enlazarDescarga } from '../ui.js';
 
 export async function render(el, params) {
   cargando(el);
@@ -15,6 +15,7 @@ export async function render(el, params) {
         <h2>Afiliados con cuotas vencidas</h2>
         <div class="fila">
           <div class="campo chico"><label>Al día</label><input type="date" id="alDia" value="${alDia}"></div>
+          ${raw(botonesDescarga('mor'))}
           <button class="btn" id="avisar">Enviar aviso por mail a seleccionados</button>
         </div>
       </div>
@@ -48,6 +49,7 @@ export async function render(el, params) {
       ], notif.notificaciones.slice(0, 30), { vacio: 'Todavía no se enviaron avisos.' }))}
     </div>`;
 
+  enlazarDescarga(el, 'mor', '/api/facturacion/imprimir/morosos', () => ({ alDia }), api);
   $('#alDia', el).addEventListener('change', e => { location.hash = `#/morosos/${e.target.value}`; });
   $('#avisar', el).addEventListener('click', e => conBoton(e.target, async () => {
     const ids = $$('.sel', el).filter(x => x.checked).map(x => Number(x.value));
