@@ -5,6 +5,10 @@
 #   SPRING_PROFILES_ACTIVE=mysql FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo mvn spring-boot:run
 # Si el puerto 3306 ya está ocupado (por ejemplo, por un MySQL instalado en la PC), use otro:
 #   MYSQL_PUERTO=3307 docker compose up -d      y arranque el sistema con DB_PORT=3307
+# Nombre de proyecto fijo: así el contenedor y su volumen son los mismos aunque el repositorio esté
+# clonado en otra carpeta (antes, una segunda carpeta chocaba con el contenedor "cmm-mysql" ya creado).
+name: cmm-sistema-integral
+
 services:
   mysql:
     image: mysql:8.4
