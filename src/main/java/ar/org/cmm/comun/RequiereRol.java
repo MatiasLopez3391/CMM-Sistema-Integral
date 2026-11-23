@@ -9,9 +9,8 @@ import java.lang.annotation.Target;
 /**
  * Marca los roles que podrán usar un endpoint cuando se active el login.
  *
- * <p>Hoy es solo documental. Al sumar Spring Security se reemplaza por
- * {@code @PreAuthorize("hasAnyRole(...)")} (búsqueda y reemplazo directa) o se implementa un
- * interceptor que la lea.
+ * <p>La hace efectiva {@code ar.org.cmm.seguridad.RolInterceptor}: la anotación del método manda sobre la
+ * de la clase, y un endpoint sin anotación solo exige haber iniciado sesión.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

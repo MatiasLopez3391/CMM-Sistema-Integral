@@ -46,6 +46,7 @@ public class CobranzaController {
     }
 
     @GetMapping("/medios")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.MEDICO_AUDITOR, Rol.IT})
     public List<MedioDto> medios() {
         return servicio.medios();
     }

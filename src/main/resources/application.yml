@@ -15,6 +15,11 @@ spring:
   web:
     locale: es_AR
     locale-resolver: fixed
+    resources:
+      cache:
+        cachecontrol:
+          # El navegador siempre revalida la pantalla y los .js: así una actualización no deja una versión vieja en caché.
+          no-cache: true
   servlet:
     multipart:
       max-file-size: 10MB
@@ -44,6 +49,15 @@ server:
   port: ${PORT:8080}
   error:
     include-message: always
+  servlet:
+    session:
+      # Vence tras 6 horas sin actividad, salvo que la persona cierre sesión antes (T36).
+      timeout: 6h
+      tracking-modes: cookie
+      cookie:
+        http-only: true
+        same-site: strict
+        secure: false   # el perfil "https" (al final de este archivo) la pasa a true
 
 app:
   uploads-dir: ${UPLOADS_DIR:./data/uploads}
@@ -85,3 +99,21 @@ spring:
     # Para cargar también los datos de demostración en MySQL:
     # FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo
     locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
+
+---
+# HTTPS (T36). Se suma a otro perfil, por ejemplo SPRING_PROFILES_ACTIVE=mysql,https
+# Requiere un keystore con el certificado: ver README, sección "HTTPS".
+spring:
+  config:
+    activate:
+      on-profile: https
+server:
+  ssl:
+    enabled: true
+    key-store: ${SSL_KEYSTORE}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD}
+    key-store-type: ${SSL_KEYSTORE_TYPE:PKCS12}
+  servlet:
+    session:
+      cookie:
+        secure: true

@@ -50,6 +50,7 @@ public class CoberturaController {
 
     // ---- Planes
     @GetMapping("/planes")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.MEDICO_AUDITOR, Rol.IT})
     public List<PlanDto> planes() {
         return servicio.listarPlanes();
     }
@@ -67,6 +68,7 @@ public class CoberturaController {
 
     // ---- Derivadoras
     @GetMapping("/derivadoras")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.MEDICO_AUDITOR, Rol.IT})
     public List<DerivadoraDto> derivadoras() {
         return servicio.listarDerivadoras();
     }

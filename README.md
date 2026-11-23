@@ -47,7 +47,7 @@ Para generar el .jar:
 
 **Windows con tildes o "ñ" en la ruta** (ej. `Tercer Año`): `spring-boot:run` puede fallar con *"no se ha encontrado o cargado la clase principal"*. Usar `iniciar.cmd` o el comando `package` + `java -jar` de arriba, que no tienen ese problema, o mover el proyecto a una ruta sin tildes (ej. `C:\proyectos\cmm-sistema-integral`).
 
-Abrir **http://localhost:8080**.
+Abrir **http://localhost:8080** e ingresar con uno de los usuarios de la sección [4. Login y roles](#4-login-y-roles) (por ejemplo `daniela` / `daniela2026`).
 
 | Dirección | Para qué |
 | --- | --- |
@@ -85,11 +85,12 @@ Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
 mvn test
 ```
 
-Son 9 pruebas:
+Son 22 pruebas:
 
 - lector de archivos de cobranza;
 - importador de planillas;
-- ciclo completo contra la base: coseguro, cuotas, idempotencia, importación con rechazos, recargo por mora, morosos y asientos balanceados.
+- ciclo completo contra la base: coseguro, cuotas, idempotencia, importación con rechazos, recargo por mora, morosos y asientos balanceados;
+- login, sesión, CSRF y roles (`SeguridadTest`).
 
 ---
 
@@ -119,7 +120,8 @@ Archivos de ejemplo para probar en vivo (se descargan desde las mismas pantallas
 
 ```
 ar.org.cmm
-├── comun/            Auditoría, usuario actual (preparado para login), errores, numeradores
+├── comun/            Auditoría, usuario actual, errores, numeradores
+├── seguridad/        F1 · Login, usuarios, roles y sesión (Spring Security)
 ├── contratos/        Interfaces entre frentes: AfiliadoConsulta, BloqueoServicio, PlanConsulta,
 │                     CoseguroServicio, CuentaCorrienteServicio, PadronFiscalServicio
 ├── afiliados/        F1 · Núcleo y Afiliados
@@ -134,23 +136,85 @@ ar.org.cmm
 Reglas que el código ya respeta:
 
 - **Ningún módulo usa clases internas de otro.** Solo se comunican por `contratos/`. Las referencias entre módulos se guardan por id (por ejemplo, `Comprobante.afiliadoId`).
-- **Cada frente numera sus migraciones en su rango:** núcleo `V001`, F1 `V1xx`, F2 `V2xx`, F3 `V3xx`, F4 `V4xx`, catálogos `V900`, demo `V950`. Está activo `out-of-order` para que no choquen entre sí.
+- **Cada frente numera sus migraciones en su rango:** núcleo `V001`, F1 `V1xx` (usuarios: `V101`), F2 `V2xx`, F3 `V3xx`, F4 `V4xx`, catálogos `V900`, demo `V950`. Está activo `out-of-order` para que no choquen entre sí.
 - **La API nunca expone entidades JPA:** usa DTOs (records). Los errores tienen un formato único (`ProblemDetail`), cuyo campo `detail` muestra el frontend.
 
 ---
 
-## 4. Login (preparado, no implementado)
+## 4. Login y roles
 
-- Todo el código obtiene el usuario con `UsuarioActualProvider`.
-- La implementación actual, `UsuarioDemoProvider`, toma el nombre del campo **"Operador"** de la barra superior (encabezado `X-Usuario`), así la auditoría ya registra nombres.
-- Los endpoints están marcados con `@RequiereRol({...})` según los roles del informe.
+Al abrir la aplicación se pide **usuario y contraseña**. Arriba a la derecha se ve el nombre de quien inició sesión (y se registra en la auditoría con su usuario) y el botón **Cerrar sesión**.
 
-Para activar Spring Security:
+- **Sesión:** cookie `HttpOnly` (con `SameSite=Strict`). Vence a las **6 horas sin actividad**, o antes si la persona cierra sesión (`server.servlet.session.timeout` en `application.yml`).
+- **Contraseñas:** se guardan solo como hash **BCrypt**. No hay bloqueo de cuenta por intentos fallidos (decisión del equipo por ahora).
+- **Roles:** cada endpoint declara quién puede usarlo con `@RequiereRol`; `seguridad/RolInterceptor` lo hace cumplir (la anotación del método manda sobre la de la clase). Sin permiso, la API responde 403 con un mensaje. El frontend oculta lo que el rol no puede usar (`static/js/permisos.js`; si cambia un `@RequiereRol`, actualizar ese archivo).
+- **CSRF:** el servidor deja la cookie `XSRF-TOKEN` y el frontend la devuelve en el encabezado `X-XSRF-TOKEN`.
+- La consola `/h2-console` (solo perfil demo) exige el rol `IT`.
 
-1. Agregar `spring-boot-starter-security`.
-2. Crear `UsuarioSpringSecurityProvider implements UsuarioActualProvider` con `@Primary`, que lea `SecurityContextHolder`.
-3. Reemplazar `@RequiereRol` por `@PreAuthorize("hasAnyRole(...)")` (búsqueda y reemplazo) y habilitar `@EnableMethodSecurity`.
-4. Servir todo por **HTTPS**, indispensable para el médico auditor remoto.
+### Usuarios de demostración
+
+Se cargan con los datos de demo (`db/demo/V952__usuarios_demo.sql` y `V953__perfiles_usuarios_demo.sql`). La contraseña es el usuario seguido del año:
+
+| Usuario | Contraseña | Nombre | Perfil | Roles internos |
+| --- | --- | --- | --- | --- |
+| `silvina` | `silvina2026` | Silvina | **Permiso total** | todos |
+| `gisela` | `gisela2026` | Gisela | **Facturación y Cobranza**: facturación, cobranza y datos del afiliado (consulta y edición) | LIQUIDACIONES |
+| `daniela` | `daniela2026` | Daniela | **Emisora de órdenes**: emisión de órdenes (módulo en construcción), datos del afiliado (consulta y edición) y carga de historia clínica | MESA_ENTRADAS |
+| `ludovico` | `ludovico2026` | Médico Auditor | **Médico auditor**: solo consulta de los datos del paciente (incluidas la historia clínica y la pestaña Auditoría); no edita | MEDICO_AUDITOR |
+
+La historia clínica la **ve** cualquier usuario con sesión; solo la **cargan** quienes tienen el rol `MESA_ENTRADAS` (la emisora y el permiso total).
+
+> Son solo para demostración. En producción **no** se aplica `db/demo`: los usuarios reales los carga el CMM.
+
+### Cargar un usuario real (sin pantalla de gestión de usuarios)
+
+Todavía no hay una pantalla para administrar usuarios. Mientras tanto se cargan por SQL, con la contraseña ya convertida a BCrypt (por ejemplo con cualquier generador BCrypt de costo 10, que produce un texto que empieza con `$2a$10$`):
+
+```sql
+INSERT INTO usuario (username, nombre, clave_hash, activo)
+VALUES ('usuario', 'Nombre Apellido', '<hash BCrypt>', TRUE);
+INSERT INTO usuario_rol (usuario_id, rol)
+SELECT id, 'ADMINISTRACION' FROM usuario WHERE username = 'usuario';
+```
+
+Roles válidos: `ADMINISTRACION`, `LIQUIDACIONES`, `MESA_ENTRADAS`, `MEDICO_AUDITOR`, `IT`. Para dar de baja a alguien: `UPDATE usuario SET activo = FALSE WHERE username = 'usuario';`.
+
+### HTTPS
+
+El sistema ya soporta HTTPS, pero **hace falta un certificado**, que el CMM todavía no tiene (ni dominio). Hasta entonces se sirve por HTTP, solo dentro de la red interna. HTTPS es indispensable para el acceso remoto del médico auditor.
+
+1. **Conseguir el certificado** (cuando el CMM tenga dominio, por ejemplo `sistema.ejemplo.org.ar`): lo emite una autoridad certificante (por ejemplo Let's Encrypt, o la que use IT). Se obtienen dos archivos: la cadena de certificados y la clave privada.
+2. **Convertirlos a un keystore PKCS12** (hay que tener `openssl` instalado):
+
+   ```bash
+   openssl pkcs12 -export -in fullchain.pem -inkey privkey.pem -out cmm.p12 -name cmm
+   ```
+
+   Pide una contraseña para el keystore: guardarla.
+3. **Arrancar con el perfil `https`** y estas variables de entorno (en PowerShell se usa `$env:NOMBRE="valor"`):
+
+   | Variable | Valor |
+   | --- | --- |
+   | `SPRING_PROFILES_ACTIVE` | `mysql,https` (el perfil `https` se suma a otro) |
+   | `SSL_KEYSTORE` | ruta del keystore, por ejemplo `file:C:/cmm/cmm.p12` |
+   | `SSL_KEYSTORE_PASSWORD` | la contraseña del paso 2 |
+   | `SSL_KEYSTORE_TYPE` | opcional, por defecto `PKCS12` |
+   | `PORT` | opcional, por ejemplo `8443` |
+
+4. Abrir `https://<dominio>:<puerto>`. Con el perfil `https` la cookie de sesión pasa a ser `Secure`.
+5. **Renovación:** los certificados vencen; al renovarlo, repetir el paso 2 y reiniciar la aplicación.
+
+**Para probar HTTPS en una PC sin certificado real** (el navegador mostrará una advertencia, es lo esperado):
+
+```bash
+keytool -genkeypair -alias cmm -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore cmm-prueba.p12 -validity 365 -dname "CN=localhost"
+```
+
+y usar ese archivo como `SSL_KEYSTORE`. No usar un certificado de prueba en producción.
+
+## Rollback
+
+Cómo volver a la versión anterior (aplicación, base de datos y comprobantes) si un despliegue sale mal, con el ensayo paso a paso para Docker: [`docs/rollback.md`](docs/rollback.md).
 
 ---
 
