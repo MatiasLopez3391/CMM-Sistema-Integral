@@ -1,4 +1,5 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCESO_PESTANIAS, ACCIONES } from '../permisos.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
 
 let estadoBusqueda = { q: '', estado: 'ACTIVO', planId: '', bloqueado: '', soloTitulares: false, pagina: 0 };
@@ -10,12 +11,13 @@ export async function render(el, params) {
 
 // =====================================================================  LISTADO
 async function renderListado(el) {
-  const planes = await api.get('/api/cobertura/planes');
+  // Planes es de Cobertura (F2) y no lo ven todos los roles: sin permiso, el filtro por plan queda vacío.
+  const planes = await api.get('/api/cobertura/planes').catch(() => []);
   el.innerHTML = html`
     <div class="tarjeta">
       <div class="tarjeta-titulo">
         <h2>Buscar afiliados</h2>
-        <button class="btn primario" id="nuevo">+ Nuevo afiliado</button>
+        ${raw(tieneRol(ACCIONES.editarAfiliado) ? '<button class="btn primario" id="nuevo">+ Nuevo afiliado</button>' : '')}
       </div>
       <form id="filtros" class="fila">
         <div class="campo"><label>Nro. afiliado, documento o apellido</label><input name="q" value="${estadoBusqueda.q}" placeholder="Ej.: 1310900001, 28455120, Gómez"></div>
@@ -33,7 +35,7 @@ async function renderListado(el) {
     estadoBusqueda = { q: d.q || '', estado: d.estado || '', planId: d.planId || '', bloqueado: d.bloqueado || '', soloTitulares: d.soloTitulares, pagina: 0 };
     buscar(el);
   });
-  $('#nuevo', el).addEventListener('click', () => formularioAfiliado(null));
+  $('#nuevo', el)?.addEventListener('click', () => formularioAfiliado(null)); // el botón no existe para quien solo consulta
   buscar(el);
 }
 
@@ -65,6 +67,8 @@ async function renderFicha(el, id, tab) {
   const titularId = a.titularId || a.id;
   const esTitular = !a.titularId;
   const activo = a.estado === 'ACTIVO';
+  const puedeEditar = tieneRol(ACCIONES.editarAfiliado);
+  const puedeBloquear = tieneRol(ACCIONES.bloquearAfiliado);
   el.innerHTML = html`
     <p><a href="#/afiliados">← Volver al listado</a></p>
     ${raw(a.bloqueado ? `<div class="cinta error"><b>Grupo familiar bloqueado</b>${a.ultimaMarcaBloqueo ? ' · ' + esc(a.ultimaMarcaBloqueo) : ''}. Sigue activo en la obra social pero no puede pedir órdenes.</div>` : '')}
@@ -77,16 +81,17 @@ async function renderFicha(el, id, tab) {
           <div class="suave"><span class="mono">${a.nroAfiliado}</span> · ${a.parentesco}${raw(a.titularNombre ? ` de <a href="#/afiliados/${a.titularId}">${esc(a.titularNombre)}</a>` : '')} · Plan ${a.planCodigo} ${a.planNombre} (${fmt.pct(a.coberturaPorcentaje)})</div>
         </div>
         <div class="fila">
-          ${raw(activo ? '<button class="btn" id="editar">Editar</button>' : '')}
-          ${raw(activo && esTitular ? '<button class="btn" id="integrante">+ Integrante</button>' : '')}
-          ${raw(activo ? (a.bloqueado ? '<button class="btn" id="desbloquear">Desbloquear</button>' : '<button class="btn peligro" id="bloquear">Bloquear</button>') : '')}
-          ${raw(activo ? '<button class="btn peligro" id="baja">Dar de baja</button>' : '')}
+          ${raw(activo && puedeEditar ? '<button class="btn" id="editar">Editar</button>' : '')}
+          ${raw(activo && puedeEditar && esTitular ? '<button class="btn" id="integrante">+ Integrante</button>' : '')}
+          ${raw(activo && puedeBloquear ? (a.bloqueado ? '<button class="btn" id="desbloquear">Desbloquear</button>' : '<button class="btn peligro" id="bloquear">Bloquear</button>') : '')}
+          ${raw(activo && puedeEditar ? '<button class="btn peligro" id="baja">Dar de baja</button>' : '')}
         </div>
       </div>
     </div>
     <div class="tarjeta">
       <div class="tabs" id="tabs">
         ${raw(['datos:Datos', 'grupo:Grupo familiar', 'cuenta:Cuenta corriente', 'pagos:Pagos', 'hc:Historia clínica', 'bloqueos:Bloqueos', 'auditoria:Auditoría']
+          .filter(x => { const roles = ACCESO_PESTANIAS[x.split(':')[0]]; return !roles || tieneRol(roles); })
           .map(x => { const [k, t] = x.split(':'); return `<button data-tab="${k}" class="${k === tab ? 'activo' : ''}">${t}</button>`; }).join(''))}
       </div>
       <div id="contenidoTab"></div>
@@ -177,8 +182,8 @@ async function tabPagos(c, a) {
 async function tabHistoria(c, a) {
   const entradas = await api.get(`/api/afiliados/${a.id}/historia-clinica`, { grupo: true });
   c.innerHTML = html`
-    <div class="cinta info">Información confidencial. Acceso restringido a auditoría médica y mesa de entradas; cada consulta queda registrada.</div>
-    <div class="fila" style="justify-content:flex-end;margin-bottom:10px">${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="nuevaHc">+ Nueva entrada</button>' : '')}</div>
+    <div class="cinta info">Información confidencial: cada consulta queda registrada.</div>
+    <div class="fila" style="justify-content:flex-end;margin-bottom:10px">${raw(a.estado === 'ACTIVO' && tieneRol(ACCIONES.cargarHistoriaClinica) ? '<button class="btn primario" id="nuevaHc">+ Nueva entrada</button>' : '')}</div>
     ${raw(tabla([
       { t: 'Fecha', v: x => fmt.fecha(x.fecha) },
       { t: 'Afiliado', v: x => esc(x.afiliado) },

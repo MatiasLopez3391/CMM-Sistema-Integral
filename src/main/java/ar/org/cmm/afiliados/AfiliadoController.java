@@ -62,26 +62,26 @@ public class AfiliadoController {
 
     @PostMapping("/afiliados")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiereRol({Rol.ADMINISTRACION})
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS})
     public Map<String, Long> crear(@Valid @RequestBody AfiliadoRequest req) {
         return Map.of("id", servicio.crearTitular(req));
     }
 
     @PutMapping("/afiliados/{id}")
-    @RequiereRol({Rol.ADMINISTRACION})
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS})
     public void modificar(@PathVariable Long id, @Valid @RequestBody AfiliadoRequest req) {
         servicio.modificar(id, req);
     }
 
     @PostMapping("/afiliados/{id}/integrantes")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequiereRol({Rol.ADMINISTRACION})
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS})
     public Map<String, Long> agregarIntegrante(@PathVariable Long id, @Valid @RequestBody IntegranteRequest req) {
         return Map.of("id", servicio.agregarIntegrante(id, req));
     }
 
     @PostMapping("/afiliados/{id}/baja")
-    @RequiereRol({Rol.ADMINISTRACION})
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS})
     public Map<String, Integer> baja(@PathVariable Long id, @Valid @RequestBody BajaRequest req) {
         return Map.of("integrantesDadosDeBaja", servicio.darDeBaja(id, req));
     }
@@ -105,7 +105,7 @@ public class AfiliadoController {
     }
 
     @GetMapping("/afiliados/{id}/auditoria")
-    @RequiereRol({Rol.ADMINISTRACION, Rol.IT})
+    @RequiereRol({Rol.ADMINISTRACION, Rol.IT, Rol.MEDICO_AUDITOR})
     public List<AuditoriaCambio> auditoria(@PathVariable Long id) {
         return auditoria.deEntidad("afiliado", id);
     }

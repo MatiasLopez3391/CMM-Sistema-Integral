@@ -1,33 +1,69 @@
 // Cliente de la API REST. Todas las pantallas leen y escriben datos reales a través de este módulo.
 
-const CLAVE_OPERADOR = 'cmm.operador';
+// ---------- Sesión (T36): el usuario ingresa con su cuenta; el servidor guarda la sesión en una cookie HttpOnly.
+let sesionActual = null;
 
-export function operador() {
-  try { return localStorage.getItem(CLAVE_OPERADOR) || ''; } catch { return ''; }
+/** Datos de quien tiene la sesión abierta: { usuario, nombre, roles } o null. */
+export const sesion = () => sesionActual;
+
+/** true si el usuario actual tiene alguno de esos roles. El servidor vuelve a controlarlo en cada pedido. */
+export function tieneRol(roles) {
+  return !!sesionActual && roles.some(r => sesionActual.roles.includes(r));
 }
 
-export function guardarOperador(nombre) {
-  try { localStorage.setItem(CLAVE_OPERADOR, nombre); } catch { /* sin almacenamiento */ }
+// Protección CSRF: el servidor deja la cookie XSRF-TOKEN y el navegador la devuelve en este encabezado.
+function xsrf() {
+  const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
 }
 
 function encabezados(extra = {}) {
   const h = { ...extra };
-  const op = operador();
-  if (op) h['X-Usuario'] = encodeURIComponent(op); // identifica al operador en la auditoría
+  const t = xsrf();
+  if (t) h['X-XSRF-TOKEN'] = t;
   return h;
 }
 
-async function procesar(resp) {
+async function procesar(resp, avisarSesionVencida = true) {
   if (resp.status === 204) return null;
   const tipo = resp.headers.get('content-type') || '';
   const cuerpo = tipo.includes('json') ? await resp.json() : await resp.text();
   if (!resp.ok) {
-    const msg = (cuerpo && (cuerpo.detail || cuerpo.title)) || `Error ${resp.status}`;
+    let msg = (cuerpo && (cuerpo.detail || cuerpo.title)) || `Error ${resp.status}`;
+    if (resp.status === 401 && avisarSesionVencida) {
+      sesionActual = null;
+      msg = 'Su sesión venció. Ingrese nuevamente.';
+      window.dispatchEvent(new Event('cmm:sesion-vencida'));
+    }
     const err = new Error(msg);
     err.status = resp.status;
     throw err;
   }
   return cuerpo;
+}
+
+/** Consulta quién tiene la sesión abierta. Devuelve null si nadie (y deja lista la cookie CSRF para ingresar). */
+export async function consultarSesion() {
+  const resp = await fetch('/api/auth/yo', { headers: encabezados() });
+  if (resp.status === 401) { sesionActual = null; return null; }
+  sesionActual = await procesar(resp);
+  return sesionActual;
+}
+
+export async function ingresar(usuario, clave) {
+  const resp = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: encabezados({ 'Content-Type': 'application/x-www-form-urlencoded' }),
+    body: new URLSearchParams({ usuario, clave })
+  });
+  await procesar(resp, false);
+  return consultarSesion();
+}
+
+export async function salir() {
+  await fetch('/api/auth/logout', { method: 'POST', headers: encabezados() });
+  sesionActual = null;
+  await consultarSesion(); // renueva la cookie CSRF para el próximo ingreso
 }
 
 function conQuery(url, params) {
