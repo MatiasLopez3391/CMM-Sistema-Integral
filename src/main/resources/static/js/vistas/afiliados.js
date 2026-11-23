@@ -35,7 +35,7 @@ async function renderListado(el) {
     estadoBusqueda = { q: d.q || '', estado: d.estado || '', planId: d.planId || '', bloqueado: d.bloqueado || '', soloTitulares: d.soloTitulares, pagina: 0 };
     buscar(el);
   });
-  $('#nuevo', el).addEventListener('click', () => formularioAfiliado(null));
+  $('#nuevo', el)?.addEventListener('click', () => formularioAfiliado(null)); // el botón no existe para quien solo consulta
   buscar(el);
 }
 
