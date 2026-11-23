@@ -53,7 +53,19 @@ public class LayoutArchivo {
     private Integer referenciaPos;
     private Integer referenciaLargo;
 
+    /** Registro de pie (control): si se indica, el archivo debe traer un pie cuyo conteo y total coincidan con lo leído. */
+    private String piePrefijo;
+    private Integer pieCantidadPos;
+    private Integer pieCantidadLargo;
+    private Integer pieTotalPos;
+    private Integer pieTotalLargo;
+
     private boolean provisorio;
     private String observaciones;
     private boolean activo = true;
+
+    public boolean tienePie() {
+        return piePrefijo != null && !piePrefijo.isBlank() && pieCantidadPos != null && pieCantidadLargo != null
+                && pieTotalPos != null && pieTotalLargo != null;
+    }
 }

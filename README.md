@@ -85,7 +85,7 @@ Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
 mvn test
 ```
 
-Son 22 pruebas:
+Son 28 pruebas:
 
 - lector de archivos de cobranza;
 - importador de planillas;
@@ -103,7 +103,7 @@ Son 22 pruebas:
 | Prestadores y coseguro | Valores convenidos con vigencia e historial; importación del Excel del prestador; **simulador de coseguro por plan** | H12 |
 | Derivadoras | Obra social de origen del afiliado (sin facturar aportes) | H11 |
 | Cuotas | Actualización mensual por % **sin pedirla a sistemas**; simulación y generación masiva; recargo por mora automático; resumen de facturación | Dolor principal del relevamiento |
-| Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
+| Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos, duplicados y control del pie del archivo (cantidad y total); diseño real de PagoMisCuentas (COB, 100 caracteres); pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
 | Morosos | Listado con deuda y días de atraso, bloqueo manual con motivo, aviso por mail | H4 (regla automática pendiente) |
 | Exportación FEBBO | Asientos de cuotas y pagos a partir de la relación código de servicio → cuenta contable | H10 |
 | Configuración | Parámetros (vencimiento, tasa de recargo) y diseños de archivo de cobranza editables | — |

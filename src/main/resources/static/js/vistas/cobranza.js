@@ -81,6 +81,7 @@ function mostrarLote(cont, lote, alTerminar) {
         <div class="kpi"><div class="kpi-etiqueta">Válidos</div><div class="kpi-valor">${lote.cantidadOk}</div><div class="kpi-nota">${fmt.moneda(lote.importeOk)}</div></div>
         <div class="kpi ${raw(lote.cantidadRechazados ? 'alerta' : '')}"><div class="kpi-etiqueta">Rechazados</div><div class="kpi-valor">${lote.cantidadRechazados}</div></div>
       </div>
+      ${raw(lote.pieControlado ? `<p class="suave">Pie del archivo verificado: la cantidad de pagos y el importe total coinciden con lo informado por el ente.</p>` : '')}
       ${raw(tablaPagos(lote.pagos))}
       <div id="resConf"></div>
       ${raw(pendiente ? `<div class="acciones"><button class="btn peligro" id="descartar">Descartar</button>

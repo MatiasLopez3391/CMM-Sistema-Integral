@@ -55,6 +55,9 @@ function editarLayout(l, el) {
       ${num('importePos', l.importePos, 'Importe: posición')}${num('importeLargo', l.importeLargo, 'Importe: largo')}
       ${num('importeDecimalesImpl', l.importeDecimalesImpl, 'Decimales implícitos')}
       ${num('referenciaPos', l.referenciaPos, 'Referencia: posición')}${num('referenciaLargo', l.referenciaLargo, 'Referencia: largo')}
+      <div class="campo chico"><label>Pie: prefijo (control)</label><input name="piePrefijo" value="${esc(l.piePrefijo)}"></div>
+      ${num('pieCantidadPos', l.pieCantidadPos, 'Pie cantidad: posición')}${num('pieCantidadLargo', l.pieCantidadLargo, 'Pie cantidad: largo')}
+      ${num('pieTotalPos', l.pieTotalPos, 'Pie total: posición')}${num('pieTotalLargo', l.pieTotalLargo, 'Pie total: largo')}
       <div class="campo" style="grid-column:1/-1"><label>Observaciones</label><input name="observaciones" value="${esc(l.observaciones)}"></div>
     </form>
     <div class="acciones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ok">Guardar</button></div>`);

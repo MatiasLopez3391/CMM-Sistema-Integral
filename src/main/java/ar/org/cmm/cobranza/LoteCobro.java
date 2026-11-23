@@ -46,4 +46,6 @@ public class LoteCobro extends Auditable {
     private int cantidadRechazados;
     private BigDecimal importeOk;
     private LocalDateTime fechaConfirmacion;
+    /** true si el pie del archivo (cantidad y total) fue verificado contra lo leído. */
+    private boolean pieControlado;
 }

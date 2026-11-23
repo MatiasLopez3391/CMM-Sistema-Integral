@@ -8,6 +8,7 @@ import ar.org.cmm.cobranza.CobranzaDtos.LoteDto;
 import ar.org.cmm.cobranza.CobranzaDtos.MedioDto;
 import ar.org.cmm.cobranza.CobranzaDtos.PagoDto;
 import ar.org.cmm.cobranza.CobranzaDtos.ResultadoConfirmacion;
+import ar.org.cmm.cobranza.LectorArchivoCobro.PieLeido;
 import ar.org.cmm.cobranza.LectorArchivoCobro.RegistroLeido;
 import ar.org.cmm.comun.AuditoriaService;
 import ar.org.cmm.comun.RecursoNoEncontradoException;
@@ -107,16 +108,19 @@ public class CobranzaService {
             throw new ReglaNegocioException("Este archivo ya fue importado y confirmado (lote #" + l.getId() + ").");
         });
 
-        List<RegistroLeido> registros = lector.leer(decodificar(bytes), layout);
+        String texto = decodificar(bytes);
+        List<RegistroLeido> registros = lector.leer(texto, layout);
         if (registros.isEmpty()) {
             throw new ReglaNegocioException("El archivo no contiene registros de pago con el diseño '" + layout.getNombre() + "'.");
         }
+        boolean pieControlado = controlarPie(texto, layout, registros);
         LoteCobro lote = new LoteCobro();
         lote.setMedioCobro(medio);
         lote.setLayout(layout);
         lote.setNombreArchivo(archivo.getOriginalFilename() == null ? "archivo.txt" : archivo.getOriginalFilename());
         lote.setHashArchivo(hash);
         lote.setEstado(LoteCobro.PREVISUALIZADO);
+        lote.setPieControlado(pieControlado);
         lote.setCantidadRegistros(registros.size());
         lote.setImporteOk(BigDecimal.ZERO);
         lotes.save(lote);
@@ -167,6 +171,26 @@ public class CobranzaService {
         lote.setCantidadRechazados(rechazados);
         lote.setImporteOk(importeOk);
         return lote(lote.getId());
+    }
+
+    /**
+     * Si el diseño define registro de pie, compara la cantidad y el total que informa el ente contra lo leído.
+     * Un archivo sin pie o con pie distinto está incompleto o dañado: se rechaza completo antes de imputar nada.
+     */
+    private boolean controlarPie(String texto, LayoutArchivo layout, List<RegistroLeido> registros) {
+        if (!layout.tienePie()) {
+            return false;
+        }
+        PieLeido pie = lector.leerPie(texto, layout).orElseThrow(() -> new ReglaNegocioException(
+                "El archivo no trae un registro de pie válido: puede estar incompleto o no ser de " + layout.getMedioCobro().getNombre() + "."));
+        BigDecimal totalLeido = registros.stream().filter(RegistroLeido::valido).map(RegistroLeido::importe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (pie.cantidad() != registros.size() || pie.total().compareTo(totalLeido) != 0) {
+            throw new ReglaNegocioException("El pie del archivo no coincide con su contenido: informa " + pie.cantidad()
+                    + " pago(s) por $" + pie.total() + " y se leyeron " + registros.size() + " por $" + totalLeido
+                    + ". Pida el archivo de nuevo al ente.");
+        }
+        return true;
     }
 
     /** Paso 2: imputa en cuenta corriente los pagos válidos del lote. */
@@ -344,6 +368,16 @@ public class CobranzaService {
         l.setImporteDecimalesImpl(dto.importeDecimalesImpl());
         l.setReferenciaPos(dto.referenciaPos());
         l.setReferenciaLargo(dto.referenciaLargo());
+        boolean pieParcial = dto.piePrefijo() != null && !dto.piePrefijo().isBlank();
+        if (pieParcial && (dto.pieCantidadPos() == null || dto.pieCantidadLargo() == null
+                || dto.pieTotalPos() == null || dto.pieTotalLargo() == null)) {
+            throw new ReglaNegocioException("Para controlar el pie hay que indicar posición y largo de la cantidad y del total.");
+        }
+        l.setPiePrefijo(pieParcial ? dto.piePrefijo() : null);
+        l.setPieCantidadPos(pieParcial ? dto.pieCantidadPos() : null);
+        l.setPieCantidadLargo(pieParcial ? dto.pieCantidadLargo() : null);
+        l.setPieTotalPos(pieParcial ? dto.pieTotalPos() : null);
+        l.setPieTotalLargo(pieParcial ? dto.pieTotalLargo() : null);
         l.setProvisorio(dto.provisorio());
         l.setObservaciones(dto.observaciones());
         auditoria.registrar("layout_archivo", id, "MODIFICACION", l.getNombre());
@@ -368,7 +402,7 @@ public class CobranzaService {
     private static LoteDto loteDto(LoteCobro l, List<PagoDto> ps) {
         return new LoteDto(l.getId(), l.getMedioCobro().getNombre(), l.getNombreArchivo(), l.getEstado(), l.getCantidadRegistros(),
                 l.getCantidadOk(), l.getCantidadRechazados(), l.getImporteOk(), l.getCreatedAt(), l.getCreatedBy(),
-                l.getFechaConfirmacion(), ps);
+                l.getFechaConfirmacion(), l.isPieControlado(), ps);
     }
 
     /** Los entes suelen enviar archivos en ISO-8859-1; si no es UTF-8 válido se lee como Latin-1. */
