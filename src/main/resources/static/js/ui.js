@@ -67,7 +67,7 @@ export function badgeEstado(estado) {
   const mapa = {
     ACTIVO: 'ok', BAJA: '', PAGADO: 'ok', PENDIENTE: 'aviso', PARCIAL: 'aviso', ANULADO: '',
     IMPUTADO: 'ok', RECHAZADO: 'error', CONFIRMADO: 'ok', PREVISUALIZADO: 'info', DESCARTADO: '',
-    ENVIADA: 'ok', FACTURADO: 'ok', SIN_SMTP: 'aviso', SIN_EMAIL: 'aviso', ERROR: 'error', BLOQUEO: 'error', DESBLOQUEO: 'ok'
+    ENVIADA: 'ok', FACTURADO: 'ok', EMITIDA: 'info', SIN_SMTP: 'aviso', SIN_EMAIL: 'aviso', ERROR: 'error', BLOQUEO: 'error', DESBLOQUEO: 'ok'
   };
   return `<span class="badge ${mapa[estado] ?? ''}">${esc(estado)}</span>`;
 }

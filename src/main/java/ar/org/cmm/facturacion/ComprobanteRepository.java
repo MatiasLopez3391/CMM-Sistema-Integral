@@ -46,6 +46,8 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
 
     List<Comprobante> findByAfiliadoIdOrderByFechaEmisionDesc(Long afiliadoId);
 
+    List<Comprobante> findByComprobanteAsociadoIdOrderByIdAsc(Long comprobanteAsociadoId);
+
     @Query("select distinct c.periodo from Comprobante c order by c.periodo desc")
     List<String> periodosGenerados();
 }

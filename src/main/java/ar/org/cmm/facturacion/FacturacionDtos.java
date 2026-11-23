@@ -83,14 +83,20 @@ public final class FacturacionDtos {
     // ---------------- Comprobantes y cuenta corriente
     public record ComprobanteDto(Long id, String tipo, String numero, Long afiliadoId, String nroAfiliado, String apellidoNombre,
                                  String periodo, LocalDate fechaEmision, LocalDate fechaVencimiento, BigDecimal total,
-                                 BigDecimal saldo, String estado, List<ItemDto> items, List<ImputacionDto> imputaciones) {
+                                 BigDecimal saldo, String estado, String observaciones, String comprobanteAsociado,
+                                 List<ItemDto> items, List<ImputacionDto> imputaciones, List<NotaResumenDto> notas) {
+    }
+
+    /** Nota de crédito o débito emitida sobre un comprobante. */
+    public record NotaResumenDto(Long id, String tipo, String numero, LocalDate fecha, BigDecimal importe, String motivo) {
     }
 
     public record ItemDto(String codigo, String descripcion, int cantidad, BigDecimal precioUnitario, BigDecimal importe,
                           String cuentaContable) {
     }
 
-    public record ImputacionDto(Long pagoId, LocalDate fecha, BigDecimal importe) {
+    /** Qué canceló el comprobante: un pago (pagoId) o una nota de crédito (origen = su número). */
+    public record ImputacionDto(Long pagoId, LocalDate fecha, BigDecimal importe, String origen) {
     }
 
     public record MovimientoDto(Long id, LocalDate fecha, String concepto, BigDecimal debe, BigDecimal haber, BigDecimal saldo,
@@ -102,8 +108,8 @@ public final class FacturacionDtos {
                                   BigDecimal saldoFinal, BigDecimal deudaVencida, List<ComprobanteResumenDto> comprobantes) {
     }
 
-    public record ComprobanteResumenDto(Long id, String numero, String periodo, LocalDate fechaVencimiento, BigDecimal total,
-                                        BigDecimal saldo, String estado) {
+    public record ComprobanteResumenDto(Long id, String tipo, String numero, String periodo, LocalDate fechaVencimiento,
+                                        BigDecimal total, BigDecimal saldo, String estado) {
     }
 
     // ---------------- Morosos
@@ -162,5 +168,15 @@ public final class FacturacionDtos {
     }
 
     public record ResultadoImportacionIpc(int agregados, int yaExistian, String ultimoPeriodo) {
+    }
+
+    // ---------------- Notas de crédito y débito (T46)
+    public record NotaRequest(@NotBlank String tipo, @NotNull Long afiliadoId, @NotNull LocalDate fecha, @NotNull Long codigoServicioId,
+                              @NotNull @Positive BigDecimal importe, @NotBlank @Size(max = 200) String motivo,
+                              Long comprobanteAsociadoId) {
+    }
+
+    public record ResultadoNota(Long id, String numero, String tipo, BigDecimal importe, BigDecimal aplicado, BigDecimal aFavor,
+                                LocalDate fechaVencimiento) {
     }
 }

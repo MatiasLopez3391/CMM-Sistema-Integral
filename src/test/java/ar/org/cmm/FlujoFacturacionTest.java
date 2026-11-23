@@ -12,6 +12,11 @@ import ar.org.cmm.facturacion.FacturacionDtos.CargoManualRequest;
 import ar.org.cmm.facturacion.FacturacionDtos.IpcRequest;
 import ar.org.cmm.facturacion.FacturacionDtos.ResultadoActualizacion;
 import ar.org.cmm.facturacion.IpcService;
+import ar.org.cmm.facturacion.CodigoServicioRepository;
+import ar.org.cmm.facturacion.ComprobanteRepository;
+import ar.org.cmm.facturacion.NotaService;
+import ar.org.cmm.facturacion.FacturacionDtos.NotaRequest;
+import ar.org.cmm.facturacion.FacturacionDtos.ResultadoNota;
 import ar.org.cmm.facturacion.ValorCuotaService;
 import ar.org.cmm.facturacion.FacturacionDtos.HistorialCosegurosDto;
 import ar.org.cmm.contratos.CoseguroServicio.CalculoCoseguro;
@@ -58,6 +63,9 @@ class FlujoFacturacionTest {
     @Autowired CargoCuotaService cargos;
     @Autowired IpcService ipc;
     @Autowired ValorCuotaService valores;
+    @Autowired NotaService notas;
+    @Autowired ComprobanteRepository comprobantes;
+    @Autowired CodigoServicioRepository codigos;
 
     @Test
     @Order(1)
@@ -178,5 +186,43 @@ class FlujoFacturacionTest {
         assertThatThrownBy(() -> ipc.aplicar("202611", new AplicarIpcRequest(LocalDate.of(2027, 2, 1), null)))
                 .hasMessageContaining("ya se aplicó");
         assertThatThrownBy(() -> ipc.cargarManual(new IpcRequest("202611", new BigDecimal("3")))).hasMessageContaining("ya se aplicó");
+    }
+
+    @Test
+    @Order(8)
+    void notasDeCreditoYDebitoCorrigenLaCuentaCorriente() {
+        Long ortiz = afiliados.porNroAfiliado("131090000800").orElseThrow().id();
+        Long gomez = afiliados.porNroAfiliado("131090000100").orElseThrow().id();
+        Long recargo = codigos.findFirstByTipoAndActivoTrue("RECARGO").orElseThrow().getId();
+        Long cuota = codigos.findFirstByTipoAndActivoTrue("CUOTA").orElseThrow().getId();
+        var octubre = comprobantes.findByAfiliadoIdOrderByFechaEmisionDesc(ortiz).stream()
+                .filter(c -> c.getPeriodo().equals("202610") && c.getTipo().equals("CUOTA")).findFirst().orElseThrow();
+        BigDecimal saldoAntes = cuentaCorriente.saldo(ortiz);
+        BigDecimal saldoCuotaAntes = octubre.getSaldo();
+
+        // Recargo mal cobrado en octubre: nota de crédito sobre ese comprobante
+        ResultadoNota nc = notas.emitir(new NotaRequest("CREDITO", ortiz, LocalDate.of(2026, 11, 20), recargo,
+                new BigDecimal("3460.97"), "Recargo mal aplicado", octubre.getId()));
+        assertThat(nc.numero()).startsWith("NC-");
+        assertThat(nc.aplicado()).isEqualByComparingTo("3460.97");
+        assertThat(cuentaCorriente.saldo(ortiz)).isEqualByComparingTo(saldoAntes.subtract(new BigDecimal("3460.97")));
+        assertThat(comprobantes.findById(octubre.getId()).orElseThrow().getSaldo())
+                .isEqualByComparingTo(saldoCuotaAntes.subtract(new BigDecimal("3460.97")));
+        // No se puede acreditar más de lo que tiene el comprobante
+        assertThatThrownBy(() -> notas.emitir(new NotaRequest("CREDITO", ortiz, LocalDate.of(2026, 11, 20), cuota,
+                octubre.getTotal(), "Error", octubre.getId()))).hasMessageContaining("supera");
+
+        // Nota de débito: suma deuda y vence con la próxima cuota (10/12/2026, jueves hábil)
+        BigDecimal saldoGomez = cuentaCorriente.saldo(gomez);
+        ResultadoNota nd = notas.emitir(new NotaRequest("DEBITO", gomez, LocalDate.of(2026, 11, 20), cuota,
+                new BigDecimal("1500"), "Diferencia de cuota de noviembre", null));
+        assertThat(nd.numero()).startsWith("ND-");
+        assertThat(nd.fechaVencimiento()).isEqualTo(LocalDate.of(2026, 12, 10));
+        assertThat(cuentaCorriente.saldo(gomez)).isEqualByComparingTo(saldoGomez.add(new BigDecimal("1500")));
+
+        // Los asientos del mes siguen balanceados con la nota de crédito (asiento inverso)
+        ExportacionAsientosService.Exportacion e = exportacion.exportar(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30));
+        assertThat(e.totalDebe()).isEqualByComparingTo(e.totalHaber());
+        assertThat(e.contenido()).contains("Nota de crédito " + nc.numero()).contains("Nota de débito " + nd.numero());
     }
 }

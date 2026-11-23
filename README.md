@@ -104,6 +104,7 @@ Son 22 pruebas:
 | Derivadoras | Obra social de origen del afiliado (sin facturar aportes) | H11 |
 | Cuotas | Actualización mensual por % **sin pedirla a sistemas**; simulación y generación masiva; recargo por mora automático; resumen de facturación | Dolor principal del relevamiento |
 | Cuotas › Valores de cuota | IPC mensual traído de la API del INDEC o cargado a mano, aplicado a los valores de cuota con confirmación (una vez por mes) | Revisión del 22/11 (T44) |
+| Afiliados › Cuenta corriente | Notas de crédito y débito internas para corregir errores (sobre un comprobante o sobre la deuda del grupo), con su cuenta contable y su asiento | Revisión del 22/11 (T46) |
 | Cuotas › Coseguros | Coseguros pendientes por integrante que se suman solos a la cuota del mes siguiente; carga manual (importe propio o calculado según la cobertura del plan); anulación con motivo; historial por mes de cuota | Revisión con el CMM del 22/11 (T42, T43) |
 | Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
 | Morosos | Listado con deuda y días de atraso, bloqueo manual con motivo, aviso por mail | H4 (regla automática pendiente) |
