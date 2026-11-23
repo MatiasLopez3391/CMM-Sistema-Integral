@@ -3,11 +3,13 @@ package ar.org.cmm.ordenes;
 
 import ar.org.cmm.comun.UsuarioActualProvider;
 import ar.org.cmm.contratos.CargoCuotaServicio;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class AuditoriaMedicaService {
@@ -17,19 +19,22 @@ public class AuditoriaMedicaService {
     private final OrdenEstadoHistorialRepository historiales;
     private final CargoCuotaServicio cargos;
     private final UsuarioActualProvider usuarioActual;
+    private final OrdenNotificacionService notificaciones;
 
     public AuditoriaMedicaService(
             OrdenRepository ordenes,
             AuditoriaMedicaRepository auditorias,
             OrdenEstadoHistorialRepository historiales,
             CargoCuotaServicio cargos,
-            UsuarioActualProvider usuarioActual) {
+            UsuarioActualProvider usuarioActual,
+            OrdenNotificacionService notificaciones) {
 
         this.ordenes = ordenes;
         this.auditorias = auditorias;
         this.historiales = historiales;
         this.cargos = cargos;
         this.usuarioActual = usuarioActual;
+        this.notificaciones = notificaciones;
     }
 
     @Transactional(readOnly = true)
@@ -74,15 +79,15 @@ public class AuditoriaMedicaService {
             );
         }
 
-        String nuevoEstado = decision.toUpperCase(
-                java.util.Locale.ROOT
-        );
+        String nuevoEstado = decision.toUpperCase(Locale.ROOT);
 
         String estadoAnterior = orden.getEstado();
         String usuario = usuarioActual.usuario();
         LocalDateTime ahora = LocalDateTime.now();
 
+        // 1. Registrar la decisión del médico auditor.
         AuditoriaMedica auditoria = new AuditoriaMedica();
+
         auditoria.setOrden(orden);
         auditoria.setUsuarioAuditor(usuario);
         auditoria.setDecision(nuevoEstado);
@@ -91,9 +96,11 @@ public class AuditoriaMedicaService {
 
         auditorias.save(auditoria);
 
+        // 2. Actualizar el estado de la orden.
         orden.setEstado(nuevoEstado);
         ordenes.save(orden);
 
+        // 3. Registrar el historial de estados.
         OrdenEstadoHistorial historial =
                 new OrdenEstadoHistorial();
 
@@ -106,14 +113,17 @@ public class AuditoriaMedicaService {
 
         historiales.save(historial);
 
-        // F3 registra el coseguro al emitir la orden.
-        // Si el médico rechaza la orden, se anula ese cargo.
+        // 4. Si se rechaza, anular el coseguro en F3.
         if (OrdenEstado.RECHAZADA.name().equals(nuevoEstado)) {
+
             cargos.anularCoseguro(
                     orden.getNumero(),
                     "Orden rechazada por auditoría médica"
             );
         }
+
+        // 5. Registrar y enviar la notificación al afiliado.
+        notificaciones.notificarDecision(orden);
 
         return convertir(orden);
     }
