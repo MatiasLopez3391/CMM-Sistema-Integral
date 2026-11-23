@@ -3,9 +3,10 @@
 export const ACCESO_PANTALLAS = {
   inicio: null, // sin restricción: cualquier usuario con sesión
   afiliados: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS', 'MEDICO_AUDITOR'],
-  planes: ['ADMINISTRACION', 'LIQUIDACIONES', 'IT'],
-  prestadores: ['ADMINISTRACION', 'LIQUIDACIONES', 'IT'],
-  derivadoras: ['ADMINISTRACION', 'LIQUIDACIONES', 'IT'],
+  // Mesa de Entradas (emisora de órdenes) consulta planes, prestadores y coseguros, sin modificarlos
+  planes: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS', 'IT'],
+  prestadores: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS', 'IT'],
+  derivadoras: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS', 'IT'],
   cuotas: ['LIQUIDACIONES', 'ADMINISTRACION'],
   cobranza: ['LIQUIDACIONES', 'ADMINISTRACION'],
   morosos: ['LIQUIDACIONES', 'ADMINISTRACION'],
@@ -28,5 +29,6 @@ export const ACCESO_PESTANIAS = {
 export const ACCIONES = {
   editarAfiliado: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS'], // alta, modificación, integrantes y baja
   bloquearAfiliado: ['ADMINISTRACION', 'LIQUIDACIONES'],
-  cargarHistoriaClinica: ['MESA_ENTRADAS']
+  cargarHistoriaClinica: ['MESA_ENTRADAS'],
+  editarCobertura: ['ADMINISTRACION', 'LIQUIDACIONES', 'IT'] // planes, derivadoras, prestadores, prácticas y valores
 };

@@ -86,6 +86,7 @@ public class CoberturaController {
 
     // ---- Prestadores
     @GetMapping("/prestadores")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.IT})
     public List<PrestadorDto> prestadores() {
         return servicio.listarPrestadores();
     }
@@ -102,6 +103,7 @@ public class CoberturaController {
     }
 
     @GetMapping("/prestadores/{id}/valores")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.IT})
     public List<ValorVigenteDto> valores(@PathVariable Long id,
                                          @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         return servicio.valoresVigentes(id, fecha != null ? fecha : LocalDate.now());
@@ -122,6 +124,7 @@ public class CoberturaController {
 
     // ---- Prácticas
     @GetMapping("/practicas")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.IT})
     public List<PracticaDto> practicas() {
         return servicio.listarPracticas();
     }
@@ -134,12 +137,14 @@ public class CoberturaController {
 
     // ---- Coseguro (H12)
     @GetMapping("/coseguro")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.IT})
     public CalculoCoseguro calcularCoseguro(@RequestParam Long prestadorId, @RequestParam Long practicaId, @RequestParam Long planId,
                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         return coseguro.calcular(prestadorId, practicaId, planId, fecha != null ? fecha : LocalDate.now());
     }
 
     @GetMapping("/coseguro/simulador")
+    @RequiereRol({Rol.ADMINISTRACION, Rol.LIQUIDACIONES, Rol.MESA_ENTRADAS, Rol.IT})
     public List<CalculoCoseguro> simulador(@RequestParam Long prestadorId, @RequestParam Long practicaId,
                                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
         return coseguro.simularTodosLosPlanes(prestadorId, practicaId, fecha != null ? fecha : LocalDate.now());

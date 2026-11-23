@@ -135,17 +135,24 @@ public class FacturacionController {
         return Map.of("smtpConfigurado", notificaciones.smtpConfigurado(), "notificaciones", notificaciones.recientes());
     }
 
-    // ---- Exportación a FEBBO
+    // ---- Exportación al sistema contable (T48)
+    @GetMapping("/asientos/formato")
+    public Map<String, Object> formatoAsientos() {
+        return exportacion.ejemplo();
+    }
+
     @GetMapping("/asientos/exportar")
     public ResponseEntity<byte[]> exportarAsientos(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
-        ExportacionAsientosService.Exportacion e = exportacion.exportar(desde, hasta);
+                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+                                                   @RequestParam(required = false) String lote) {
+        ExportacionAsientosService.Exportacion e = exportacion.exportar(desde, hasta, lote);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(e.nombreArchivo()).build().toString())
                 .header("X-Asientos", String.valueOf(e.asientos()))
                 .header("X-Total-Debe", e.totalDebe().toPlainString())
                 .header("X-Total-Haber", e.totalHaber().toPlainString())
-                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .contentType(e.nombreArchivo().endsWith(".txt") ? new MediaType("text", "plain", StandardCharsets.UTF_8)
+                        : new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .body(e.contenido().getBytes(StandardCharsets.UTF_8));
     }
 

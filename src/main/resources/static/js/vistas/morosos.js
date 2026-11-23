@@ -1,23 +1,56 @@
 import { api, fmt } from '../api.js';
-import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
+import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, badgeEstado, badgeBloqueado, cargando, conBoton, botonesDescarga, enlazarDescarga } from '../ui.js';
 
 export async function render(el, params) {
   cargando(el);
   const alDia = params[0] || fmt.hoy();
-  const [morosos, notif] = await Promise.all([
+  const [morosos, notif, mora] = await Promise.all([
     api.get('/api/facturacion/morosos', { alDia }),
-    api.get('/api/facturacion/notificaciones')
+    api.get('/api/facturacion/notificaciones'),
+    api.get('/api/facturacion/mora', { fecha: alDia })
   ]);
   const total = morosos.reduce((s, m) => s + Number(m.deudaVencida), 0);
   el.innerHTML = html`
     <div class="tarjeta">
       <div class="tarjeta-titulo">
+        <h2>Proceso de mora del ${fmt.fecha(alDia)}</h2>
+        <div class="campo chico"><label>Al día</label><input type="date" id="alDiaMora" value="${alDia}"></div>
+      </div>
+      <div class="cinta info">Desde el día ${mora.diaBloqueo} se deja de dar órdenes a quien no pagó la cuota: el sistema propone el bloqueo y un usuario lo confirma.
+      Con ${mora.cuotasBaja} o más cuotas impagas el grupo figura para dar de baja; <b>la baja se hace siempre a mano</b>, desde la ficha del afiliado.</div>
+      ${raw(mora.antesDelDiaDeBloqueo ? `<div class="cinta aviso">Todavía no es día ${mora.diaBloqueo}: la lista de bloqueos es informativa.</div>` : '')}
+      <div class="tarjeta-titulo" style="margin-top:12px"><h3>Para bloquear (${mora.paraBloquear.length})</h3>
+        <div class="fila"><label style="display:inline-flex;gap:6px"><input type="checkbox" id="todosBloq"> Seleccionar todos</label>
+        <button class="btn peligro" id="bloquearSel" ${raw(mora.paraBloquear.length ? '' : 'disabled')}>Bloquear seleccionados</button></div></div>
+      ${raw(tabla([
+        { t: '', v: m => `<input type="checkbox" class="selBloq" value="${m.afiliadoId}">` },
+        { t: 'Nro. afiliado', v: m => `<span class="mono">${esc(m.nroAfiliado)}</span>` },
+        { t: 'Titular', v: m => `<a href="#/afiliados/${m.afiliadoId}/cuenta">${esc(m.apellidoNombre)}</a>` },
+        { t: 'Cuotas vencidas', cls: 'num', v: m => m.cuotasVencidas },
+        { t: 'Debe', cls: 'num', v: m => `<b>${fmt.moneda(m.deudaVencida)}</b>` },
+        { t: 'Desde', v: m => `${fmt.fecha(m.vencimientoMasAntiguo)} <span class="suave">(${m.diasAtraso} días)</span>` }
+      ], mora.paraBloquear, { vacio: 'No hay grupos para bloquear.' }))}
+      <h3>Para dar de baja: ${mora.cuotasBaja} o más cuotas impagas (${mora.paraBaja.length})</h3>
+      ${raw(tabla([
+        { t: 'Nro. afiliado', v: m => `<span class="mono">${esc(m.nroAfiliado)}</span>` },
+        { t: 'Titular', v: m => `${esc(m.apellidoNombre)} ${badgeBloqueado(m.bloqueado)}` },
+        { t: 'Cuotas vencidas', cls: 'num', v: m => m.cuotasVencidas },
+        { t: 'Debe', cls: 'num', v: m => `<b>${fmt.moneda(m.deudaVencida)}</b>` },
+        { t: 'Desde', v: m => `${fmt.fecha(m.vencimientoMasAntiguo)} <span class="suave">(${m.diasAtraso} días)</span>` },
+        { t: '', cls: 'derecha', v: m => `<a class="btn chico" href="#/afiliados/${m.afiliadoId}/datos">Abrir ficha para dar de baja</a>` }
+      ], mora.paraBaja, { vacio: 'Ningún grupo llega a ese número de cuotas impagas.' }))}
+    </div>
+    <div class="tarjeta">
+      <div class="tarjeta-titulo">
         <h2>Afiliados con cuotas vencidas</h2>
         <div class="fila">
           <div class="campo chico"><label>Al día</label><input type="date" id="alDia" value="${alDia}"></div>
+          ${raw(botonesDescarga('mor'))}
+          <button class="btn" id="textoAviso">Texto del aviso</button>
           <button class="btn" id="avisar">Enviar aviso por mail a seleccionados</button>
         </div>
       </div>
+      <label style="display:inline-flex;gap:6px;margin-bottom:8px"><input type="checkbox" id="todosMail"> Seleccionar a todos los que tienen email (${morosos.filter(m => m.email).length})</label>
       <div class="cinta info">Un grupo bloqueado sigue activo en la obra social, pero no puede pedir órdenes ni atenderse hasta que se lo desbloquee.</div>
       <div class="grid-kpi">
         <div class="kpi alerta"><div class="kpi-etiqueta">Deuda vencida total</div><div class="kpi-valor">${fmt.moneda(total)}</div></div>
@@ -48,7 +81,38 @@ export async function render(el, params) {
       ], notif.notificaciones.slice(0, 30), { vacio: 'Todavía no se enviaron avisos.' }))}
     </div>`;
 
+  enlazarDescarga(el, 'mor', '/api/facturacion/imprimir/morosos', () => ({ alDia }), api);
   $('#alDia', el).addEventListener('change', e => { location.hash = `#/morosos/${e.target.value}`; });
+  $('#alDiaMora', el).addEventListener('change', e => { location.hash = `#/morosos/${e.target.value}`; });
+  $('#todosMail', el).addEventListener('change', e => $$('.sel', el).forEach(x => { if (!x.disabled) x.checked = e.target.checked; }));
+  $('#todosBloq', el).addEventListener('change', e => $$('.selBloq', el).forEach(x => { x.checked = e.target.checked; }));
+  $('#bloquearSel', el).addEventListener('click', e => conBoton(e.target, async () => {
+    const ids = $$('.selBloq', el).filter(x => x.checked).map(x => Number(x.value));
+    if (!ids.length) { toast('Seleccione al menos un grupo', 'error'); return; }
+    if (!confirm(`¿Bloquear ${ids.length} grupo(s)? No podrán pedir órdenes hasta que se los desbloquee.`)) return;
+    try {
+      const r = await api.post('/api/facturacion/mora/bloquear', { afiliadoIds: ids, fecha: alDia });
+      toast(`${r.bloqueados} grupo(s) bloqueados${r.omitidos.length ? ' · ' + r.omitidos.join('; ') : ''}`, 'ok');
+      render(el, params);
+    } catch (er) { error(er); }
+  }));
+  $('#textoAviso', el).addEventListener('click', async () => {
+    try {
+      const t = await api.get('/api/facturacion/mora/texto-aviso');
+      const m = modal('Texto del aviso de deuda', `
+        <div class="campo"><label>Asunto</label><input id="asunto" maxlength="200" value="${esc(t.asunto)}"></div>
+        <div class="campo"><label>Texto</label><textarea id="texto" rows="11" maxlength="1800">${esc(t.texto)}</textarea></div>
+        <p class="ayuda">Se reemplazan solos: <span class="mono">{nombre}</span>, <span class="mono">{fecha}</span>, <span class="mono">{cuotas}</span>,
+        <span class="mono">{deuda}</span> y <span class="mono">{vencimiento}</span> (deuda más antigua).</p>
+        <div class="acciones"><button class="btn" data-cerrar>Cancelar</button><button class="btn primario" id="ok">Guardar</button></div>`);
+      $('#ok', m.el).addEventListener('click', ev => conBoton(ev.target, async () => {
+        try {
+          await api.put('/api/facturacion/mora/texto-aviso', { asunto: $('#asunto', m.el).value, texto: $('#texto', m.el).value });
+          m.cerrar(); toast('Texto del aviso guardado', 'ok');
+        } catch (er) { error(er); }
+      }));
+    } catch (er) { error(er); }
+  });
   $('#avisar', el).addEventListener('click', e => conBoton(e.target, async () => {
     const ids = $$('.sel', el).filter(x => x.checked).map(x => Number(x.value));
     if (!ids.length) { toast('Seleccione al menos un afiliado con email', 'error'); return; }

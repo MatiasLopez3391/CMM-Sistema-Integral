@@ -12,7 +12,7 @@ const RUTAS = {
   cuotas: { titulo: 'Cuotas', modulo: './vistas/cuotas.js' },
   cobranza: { titulo: 'Cobranza', modulo: './vistas/cobranza.js' },
   morosos: { titulo: 'Morosos', modulo: './vistas/morosos.js' },
-  contabilidad: { titulo: 'Exportación a FEBBO', modulo: './vistas/contabilidad.js' },
+  contabilidad: { titulo: 'Exportación a sistema contable', modulo: './vistas/contabilidad.js' },
   configuracion: { titulo: 'Configuración', modulo: './vistas/configuracion.js' }
 };
 
@@ -30,6 +30,7 @@ async function navegar() {
   document.title = `${ruta.titulo} · Sistema Integral CMM`;
   document.querySelectorAll('#menu a[data-ruta]').forEach(a => a.classList.toggle('activo', a.dataset.ruta === (RUTAS[nombre] ? nombre : 'inicio')));
   document.getElementById('sidebar').classList.remove('abierto');
+  document.querySelectorAll('.modal-fondo').forEach(m => m.remove()); // un diálogo abierto no queda sobre otra pantalla
   const cont = document.getElementById('vista');
   if (RUTAS[nombre] && !pantallaPermitida(nombre)) {
     cont.innerHTML = '<div class="tarjeta"><div class="cinta aviso">Su usuario no tiene acceso a esta pantalla.</div></div>';

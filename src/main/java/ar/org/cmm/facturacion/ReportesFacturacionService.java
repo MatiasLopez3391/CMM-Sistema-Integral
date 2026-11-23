@@ -9,6 +9,7 @@ import ar.org.cmm.facturacion.FacturacionDtos.ComprobanteDto;
 import ar.org.cmm.facturacion.FacturacionDtos.ImputacionDto;
 import ar.org.cmm.facturacion.FacturacionDtos.ItemDto;
 import ar.org.cmm.facturacion.FacturacionDtos.MorosoDto;
+import ar.org.cmm.facturacion.FacturacionDtos.NotaResumenDto;
 import ar.org.cmm.facturacion.FacturacionDtos.ResumenConceptoDto;
 import ar.org.cmm.facturacion.FacturacionDtos.ResumenFacturacionDto;
 import ar.org.cmm.facturacion.FacturacionDtos.ResumenPlanDto;
@@ -32,14 +33,17 @@ public class ReportesFacturacionService {
 
     private final ComprobanteRepository comprobantes;
     private final ImputacionRepository imputaciones;
+    private final AplicacionCreditoRepository aplicaciones;
     private final AfiliadoConsulta afiliados;
     private final PlanConsulta planes;
     private final ParametroService parametros;
 
     public ReportesFacturacionService(ComprobanteRepository comprobantes, ImputacionRepository imputaciones,
-                                      AfiliadoConsulta afiliados, PlanConsulta planes, ParametroService parametros) {
+                                      AplicacionCreditoRepository aplicaciones, AfiliadoConsulta afiliados, PlanConsulta planes,
+                                      ParametroService parametros) {
         this.comprobantes = comprobantes;
         this.imputaciones = imputaciones;
+        this.aplicaciones = aplicaciones;
         this.afiliados = afiliados;
         this.planes = planes;
         this.parametros = parametros;
@@ -107,10 +111,20 @@ public class ReportesFacturacionService {
                 .map(i -> new ItemDto(i.getCodigoServicio().getCodigo(), i.getDescripcion(), i.getCantidad(), i.getPrecioUnitario(),
                         i.getImporte(), i.getCodigoServicio().getCuentaContable().getCodigo()))
                 .toList();
-        List<ImputacionDto> imps = imputaciones.findByComprobanteId(id).stream()
-                .map(i -> new ImputacionDto(i.getPagoId(), i.getFecha(), i.getImporte())).toList();
+        List<ImputacionDto> imps = new ArrayList<>();
+        imputaciones.findByComprobanteId(id)
+                .forEach(i -> imps.add(new ImputacionDto(i.getPagoId(), i.getFecha(), i.getImporte(), "Pago #" + i.getPagoId())));
+        aplicaciones.findByComprobanteId(id).forEach(ap -> imps.add(new ImputacionDto(null, ap.getFecha(), ap.getImporte(),
+                "Nota de crédito " + comprobantes.findById(ap.getNotaCreditoId()).map(Comprobante::getNumero).orElse("#" + ap.getNotaCreditoId()))));
+        imps.sort(Comparator.comparing(ImputacionDto::fecha));
+        List<NotaResumenDto> notas = comprobantes.findByComprobanteAsociadoIdOrderByIdAsc(id).stream()
+                .map(n -> new NotaResumenDto(n.getId(), n.getTipo(), n.getNumero(), n.getFechaEmision(), n.getTotal(), n.getObservaciones()))
+                .toList();
+        String asociado = c.getComprobanteAsociadoId() == null ? null
+                : comprobantes.findById(c.getComprobanteAsociadoId()).map(Comprobante::getNumero).orElse(null);
         return new ComprobanteDto(c.getId(), c.getTipo(), c.getNumero(), a.id(), a.nroAfiliado(), a.apellidoNombre(), c.getPeriodo(),
-                c.getFechaEmision(), c.getFechaVencimiento(), c.getTotal(), c.getSaldo(), c.getEstado(), items, imps);
+                c.getFechaEmision(), c.getFechaVencimiento(), c.getTotal(), c.getSaldo(), c.getEstado(), c.getObservaciones(), asociado,
+                items, imps, notas);
     }
 
     @Transactional(readOnly = true)
