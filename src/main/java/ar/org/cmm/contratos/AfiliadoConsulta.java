@@ -1,6 +1,7 @@
 package ar.org.cmm.contratos;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -18,6 +19,9 @@ public interface AfiliadoConsulta {
 
     /** Integrantes activos del grupo, incluido el titular. */
     List<AfiliadoResumen> integrantesActivos(Long titularId);
+
+    /** Cantidad de afiliados activos por derivadora (derivadoraId -> cantidad). Lo usa F2 en el ABM de derivadoras. */
+    Map<Long, Long> activosPorDerivadora();
 
     record AfiliadoResumen(
             Long id,
