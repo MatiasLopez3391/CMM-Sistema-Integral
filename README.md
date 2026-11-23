@@ -103,6 +103,7 @@ Son 22 pruebas:
 | Prestadores y coseguro | Valores convenidos con vigencia e historial; importación del Excel del prestador; **simulador de coseguro por plan** | H12 |
 | Derivadoras | Obra social de origen del afiliado (sin facturar aportes) | H11 |
 | Cuotas | Actualización mensual por % **sin pedirla a sistemas**; simulación y generación masiva; recargo por mora automático; resumen de facturación | Dolor principal del relevamiento |
+| Cuotas › Coseguros | Coseguros pendientes por integrante que se suman solos a la cuota del mes siguiente; carga manual (importe propio o calculado según la cobertura del plan); anulación con motivo; historial por mes de cuota | Revisión con el CMM del 22/11 (T42, T43) |
 | Cobranza | Importación de .txt en dos pasos (previsualizar y confirmar) con rechazos y duplicados; pago en ventanilla con comprobante JPG/PNG/PDF; caja diaria | H3 |
 | Morosos | Listado con deuda y días de atraso, bloqueo manual con motivo, aviso por mail | H4 (regla automática pendiente) |
 | Exportación FEBBO | Asientos de cuotas y pagos a partir de la relación código de servicio → cuenta contable | H10 |
@@ -123,7 +124,7 @@ ar.org.cmm
 ├── comun/            Auditoría, usuario actual, errores, numeradores
 ├── seguridad/        F1 · Login, usuarios, roles y sesión (Spring Security)
 ├── contratos/        Interfaces entre frentes: AfiliadoConsulta, BloqueoServicio, PlanConsulta,
-│                     CoseguroServicio, CuentaCorrienteServicio, PadronFiscalServicio
+│                     CoseguroServicio, CuentaCorrienteServicio, CargoCuotaServicio, PadronFiscalServicio
 ├── afiliados/        F1 · Núcleo y Afiliados
 ├── cobertura/        F2 · Planes, derivadoras, prestadores, valores, coseguro
 ├── facturacion/      F3 · Cuotas, cuenta corriente, morosos, avisos, asientos FEBBO
@@ -137,6 +138,7 @@ Reglas que el código ya respeta:
 
 - **Ningún módulo usa clases internas de otro.** Solo se comunican por `contratos/`. Las referencias entre módulos se guardan por id (por ejemplo, `Comprobante.afiliadoId`).
 - **Cada frente numera sus migraciones en su rango:** núcleo `V001`, F1 `V1xx` (usuarios: `V101`), F2 `V2xx`, F3 `V3xx`, F4 `V4xx`, catálogos `V900`, demo `V950`. Está activo `out-of-order` para que no choquen entre sí.
+- **Coseguro de una orden → cuota (contrato `CargoCuotaServicio`, de F3 para F5):** al emitir la orden, F5 llama a `registrarCoseguro(afiliadoId, fecha, importe, concepto, nroOrden)`. Es idempotente por número de orden y el cargo va a la cuota del mes siguiente. Si la orden se anula antes de facturarse, `anularCoseguro(nroOrden, motivo)`; después, con nota de crédito.
 - **La API nunca expone entidades JPA:** usa DTOs (records). Los errores tienen un formato único (`ProblemDetail`), cuyo campo `detail` muestra el frontend.
 
 ---

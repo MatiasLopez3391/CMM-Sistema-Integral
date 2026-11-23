@@ -24,7 +24,8 @@ import java.util.Optional;
  * Generación masiva de la cuota mensual (comprobante interno por grupo familiar).
  *
  * <p>Por cada titular activo: cuota del plan × integrantes activos + adicionales configurados
- * (ej. Subsidio Supra Salud Alta Complejidad) + recargo por mora sobre la deuda vencida impaga.
+ * (ej. Subsidio Supra Salud Alta Complejidad) + coseguros pendientes del grupo (órdenes del mes anterior, T42)
+ * + recargo por mora sobre la deuda vencida impaga.
  * Es idempotente: si el titular ya tiene la cuota del período, se omite.
  */
 @Service
@@ -32,6 +33,7 @@ public class GeneracionCuotasService {
 
     static final String NUMERADOR = "COMPROBANTE_CUOTA";
     private static final DateTimeFormatter PERIODO = DateTimeFormatter.ofPattern("yyyyMM");
+    private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
     private final AfiliadoConsulta afiliados;
@@ -43,11 +45,12 @@ public class GeneracionCuotasService {
     private final ParametroService parametros;
     private final NumeradorService numerador;
     private final AuditoriaService auditoria;
+    private final CargoCuotaService cargos;
 
     public GeneracionCuotasService(AfiliadoConsulta afiliados, ValorCuotaService valores, CodigoServicioRepository codigos,
                                    ComprobanteRepository comprobantes, MovimientoCuentaCorrienteRepository movimientos,
                                    CuentaCorrienteServicioImpl cuentaCorriente, ParametroService parametros,
-                                   NumeradorService numerador, AuditoriaService auditoria) {
+                                   NumeradorService numerador, AuditoriaService auditoria, CargoCuotaService cargos) {
         this.afiliados = afiliados;
         this.valores = valores;
         this.codigos = codigos;
@@ -57,6 +60,7 @@ public class GeneracionCuotasService {
         this.parametros = parametros;
         this.numerador = numerador;
         this.auditoria = auditoria;
+        this.cargos = cargos;
     }
 
     /** Calcula sin guardar: permite revisar antes de generar. */
@@ -69,7 +73,8 @@ public class GeneracionCuotasService {
     public ResultadoGeneracion generar(String periodo, LocalDate fechaEmision) {
         ResultadoGeneracion r = procesar(periodo, fechaEmision, false);
         auditoria.registrar("comprobante", 0L, "GENERACION_CUOTAS",
-                "Período " + periodo + ": " + r.generados() + " comprobantes, total " + r.totalGeneral());
+                "Período " + periodo + ": " + r.generados() + " comprobantes, total " + r.totalGeneral()
+                        + " (coseguros " + r.totalCoseguros() + ")");
         return r;
     }
 
@@ -85,6 +90,7 @@ public class GeneracionCuotasService {
         CodigoServicio codCuota = codigos.findFirstByTipoAndActivoTrue("CUOTA")
                 .orElseThrow(() -> new ReglaNegocioException("No hay un código de servicio activo de tipo CUOTA."));
         CodigoServicio codRecargo = codigos.findFirstByTipoAndActivoTrue("RECARGO").orElse(null);
+        CodigoServicio codCoseguro = codigos.findFirstByTipoAndActivoTrue(CargoCuota.TIPO_COSEGURO).orElse(null);
         List<CodigoServicio> adicionales = codigos.findByIncluirEnCuotaTrueAndActivoTrue().stream()
                 .filter(c -> c.getImporteFijo() != null && c.getImporteFijo().signum() > 0)
                 .toList();
@@ -94,7 +100,8 @@ public class GeneracionCuotasService {
         List<PropuestaComprobante> propuestas = new ArrayList<>();
         List<String> advertencias = new ArrayList<>();
         int omitidos = 0, conRecargo = 0;
-        BigDecimal totalCuotas = BigDecimal.ZERO, totalRecargos = BigDecimal.ZERO, totalGeneral = BigDecimal.ZERO;
+        BigDecimal totalCuotas = BigDecimal.ZERO, totalCoseguros = BigDecimal.ZERO, totalRecargos = BigDecimal.ZERO,
+                totalGeneral = BigDecimal.ZERO;
 
         for (AfiliadoResumen titular : afiliados.titularesActivos()) {
             if (comprobantes.existsByAfiliadoIdAndPeriodoAndTipo(titular.id(), per, Comprobante.TIPO_CUOTA)) {
@@ -107,7 +114,8 @@ public class GeneracionCuotasService {
                         + " no tiene valor de cuota vigente para " + mesAnio);
                 continue;
             }
-            int integrantes = afiliados.integrantesActivos(titular.id()).size();
+            List<AfiliadoResumen> grupo = afiliados.integrantesActivos(titular.id());
+            int integrantes = grupo.size();
 
             Comprobante c = new Comprobante();
             c.setTipo(Comprobante.TIPO_CUOTA);
@@ -126,6 +134,22 @@ public class GeneracionCuotasService {
                 sumaAdicionales = sumaAdicionales.add(ad.getImporteFijo().multiply(BigDecimal.valueOf(integrantes)));
             }
 
+            // Coseguros pendientes del grupo (del mes anterior o atrasados), uno por renglón con el nombre del integrante.
+            List<CargoCuota> pendientes = cargos.pendientesParaCuota(titular.id(), per);
+            BigDecimal sumaCoseguros = BigDecimal.ZERO;
+            if (!pendientes.isEmpty() && codCoseguro == null) {
+                advertencias.add(titular.nroAfiliado() + ": tiene coseguros pendientes pero no hay un código de servicio COSEGURO activo; no se incluyeron.");
+                pendientes = List.of();
+            }
+            for (CargoCuota cg : pendientes) {
+                String integrante = grupo.stream().filter(g -> g.id().equals(cg.getAfiliadoId())).findFirst()
+                        .map(AfiliadoResumen::apellidoNombre)
+                        .orElseGet(() -> afiliados.obtener(cg.getAfiliadoId()).apellidoNombre());
+                String desc = "Coseguro " + integrante + " - " + cg.getConcepto() + " (" + cg.getFecha().format(FECHA) + ")";
+                c.agregarItem(item(codCoseguro, desc.length() > 200 ? desc.substring(0, 200) : desc, 1, cg.getImporte()));
+                sumaCoseguros = sumaCoseguros.add(cg.getImporte());
+            }
+
             BigDecimal deudaVencida = comprobantes.vencidosImpagos(titular.id(), fechaEmision).stream()
                     .map(Comprobante::getSaldo).reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal recargo = BigDecimal.ZERO;
@@ -141,15 +165,17 @@ public class GeneracionCuotasService {
             c.setSaldo(total);
 
             totalCuotas = totalCuotas.add(cuota).add(sumaAdicionales);
+            totalCoseguros = totalCoseguros.add(sumaCoseguros);
             totalRecargos = totalRecargos.add(recargo);
             totalGeneral = totalGeneral.add(total);
             propuestas.add(new PropuestaComprobante(titular.id(), titular.nroAfiliado(), titular.apellidoNombre(), titular.planCodigo(),
-                    integrantes, cuota, sumaAdicionales, recargo, deudaVencida, total,
+                    integrantes, cuota, sumaAdicionales, sumaCoseguros, pendientes.size(), recargo, deudaVencida, total,
                     titular.bloqueado() ? "Grupo bloqueado" : null));
 
             if (!simulacion) {
                 c.setNumero(String.format("CI-%08d", numerador.siguiente(NUMERADOR)));
                 Comprobante guardado = comprobantes.save(c);
+                cargos.marcarFacturados(pendientes, guardado.getId());
                 MovimientoCuentaCorriente m = new MovimientoCuentaCorriente();
                 m.setAfiliadoId(titular.id());
                 m.setFecha(fechaEmision);
@@ -166,7 +192,7 @@ public class GeneracionCuotasService {
             advertencias.add("Todas las cuotas del período " + mesAnio + " ya estaban generadas.");
         }
         return new ResultadoGeneracion(per, fechaEmision, vencimiento, simulacion, propuestas.size(), omitidos, conRecargo,
-                totalCuotas, totalRecargos, totalGeneral, advertencias, propuestas);
+                totalCuotas, totalCoseguros, totalRecargos, totalGeneral, advertencias, propuestas);
     }
 
     private static ComprobanteItem item(CodigoServicio cod, String descripcion, int cantidad, BigDecimal precio) {

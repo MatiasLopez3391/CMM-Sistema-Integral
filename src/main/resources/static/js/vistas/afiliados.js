@@ -145,7 +145,10 @@ async function tabCuenta(c, a, titularId) {
     </div>
     <div class="fila" style="justify-content:space-between;margin-bottom:10px">
       <span class="suave">Movimientos del ${fmt.fecha(ec.desde)} al ${fmt.fecha(ec.hasta)} · Saldo inicial ${fmt.moneda(ec.saldoInicial)}</span>
-      ${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="pagar">Registrar pago en ventanilla</button>' : '')}
+      <span class="fila">
+        ${raw(a.estado === 'ACTIVO' ? '<button class="btn" id="coseguro">Cargar coseguro</button>' : '')}
+        ${raw(a.estado === 'ACTIVO' ? '<button class="btn primario" id="pagar">Registrar pago en ventanilla</button>' : '')}
+      </span>
     </div>
     ${raw(tabla([
       { t: 'Fecha', v: m => fmt.fecha(m.fecha) },
@@ -162,8 +165,24 @@ async function tabCuenta(c, a, titularId) {
       { t: 'Total', cls: 'num', v: x => fmt.moneda(x.total) },
       { t: 'Saldo', cls: 'num', v: x => fmt.moneda(x.saldo) },
       { t: 'Estado', v: x => badgeEstado(x.estado) }
-    ], ec.comprobantes, { vacio: 'Sin comprobantes.' }))}`;
+    ], ec.comprobantes, { vacio: 'Sin comprobantes.' }))}
+    <h3>Coseguros</h3>
+    <p class="ayuda">Los pendientes se suman a la próxima cuota del grupo, con el nombre del integrante.</p>
+    <div id="coseguros"></div>`;
   $$('[data-comp]', c).forEach(l => l.addEventListener('click', e => { e.preventDefault(); verComprobante(l.dataset.comp); }));
+  const cargarCoseguros = async () => {
+    const { tablaCoseguros, enlazarAcciones } = await import('./cuotas.js');
+    const cargos = await api.get(`/api/facturacion/coseguros/afiliado/${titularId}`);
+    const cont = $('#coseguros', c);
+    cont.innerHTML = tablaCoseguros(cargos, false);
+    enlazarAcciones(cont, cargos, cargarCoseguros);
+  };
+  cargarCoseguros().catch(error);
+  $('#coseguro', c)?.addEventListener('click', async () => {
+    const { dialogoCoseguro } = await import('./coseguro-dialogo.js');
+    const grupo = a.grupoFamiliar.filter(g => g.estado === 'ACTIVO');
+    dialogoCoseguro({ grupo, alTerminar: cargarCoseguros });
+  });
   $('#pagar', c)?.addEventListener('click', () => dialogoPagoVentanilla(a.id, a.apellido + ', ' + a.nombre, () => renderActual()));
 }
 
