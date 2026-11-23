@@ -142,7 +142,9 @@ class FlujoFacturacionTest {
         ExportacionAsientosService.Exportacion e = exportacion.exportar(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 31));
         assertThat(e.asientos()).isGreaterThan(0);
         assertThat(e.totalDebe()).isEqualByComparingTo(e.totalHaber());
-        assertThat(e.contenido()).startsWith("nro_asiento;fecha;cuenta;debe;haber;concepto;referencia");
+        assertThat(e.contenido()).startsWith("lote;nro_asiento;fecha;cuenta;debe;haber;concepto;referencia");
+        // Las cuotas van al lote de facturas B (6)
+        assertThat(e.contenido()).contains("\n6;1;");
         assertThat(e.totalDebe()).isGreaterThan(BigDecimal.ZERO);
     }
 
@@ -233,6 +235,11 @@ class FlujoFacturacionTest {
         ExportacionAsientosService.Exportacion e = exportacion.exportar(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30));
         assertThat(e.totalDebe()).isEqualByComparingTo(e.totalHaber());
         assertThat(e.contenido()).contains("Nota de crédito " + nc.numero()).contains("Nota de débito " + nd.numero());
+        // Exportación de un solo lote: notas de crédito B = lote 8
+        ExportacionAsientosService.Exportacion lote8 = exportacion.exportar(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), "8");
+        assertThat(lote8.asientos()).isEqualTo(1);
+        assertThat(lote8.contenido()).contains(nc.numero()).doesNotContain("Cuota 11/2026");
+        assertThat(lote8.totalDebe()).isEqualByComparingTo(lote8.totalHaber());
     }
 
     @Test

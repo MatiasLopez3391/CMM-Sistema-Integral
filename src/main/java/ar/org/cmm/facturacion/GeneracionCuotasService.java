@@ -25,7 +25,7 @@ import java.util.Optional;
  *
  * <p>Por cada titular activo: cuota del plan × integrantes activos + adicionales configurados
  * (ej. Subsidio Supra Salud Alta Complejidad) + coseguros pendientes del grupo (órdenes del mes anterior, T42)
- * + recargo por mora sobre la deuda vencida impaga.
+ * + recargo por mora (tasa activa del BNA) sobre el valor de las cuotas vencidas impagas, sin recargo sobre recargo.
  * Es idempotente: si el titular ya tiene la cuota del período, se omite.
  */
 @Service
@@ -160,13 +160,16 @@ public class GeneracionCuotasService {
                 sumaCoseguros = sumaCoseguros.add(cg.getImporte());
             }
 
-            BigDecimal deudaVencida = comprobantes.vencidosImpagos(titular.id(), fechaEmision).stream()
-                    .map(Comprobante::getSaldo).reduce(BigDecimal.ZERO, BigDecimal::add);
+            List<Comprobante> vencidos = comprobantes.vencidosImpagos(titular.id(), fechaEmision);
+            BigDecimal deudaVencida = vencidos.stream().map(Comprobante::getSaldo).reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Recargo (respuesta del CMM del 23/11): tasa activa del BNA vigente al generar, sobre el valor de las cuotas
+            // vencidas impagas. No se cobra recargo sobre recargos anteriores.
+            BigDecimal baseRecargo = baseRecargo(vencidos);
             BigDecimal recargo = BigDecimal.ZERO;
-            if (codRecargo != null && deudaVencida.signum() > 0 && tasa.signum() > 0) {
-                recargo = deudaVencida.multiply(tasa).divide(CIEN, 2, RoundingMode.HALF_UP);
-                c.agregarItem(item(codRecargo, codRecargo.getDescripcion() + " (" + tasa.stripTrailingZeros().toPlainString()
-                        + "% s/ $" + deudaVencida.setScale(2, RoundingMode.HALF_UP).toPlainString() + ")", 1, recargo));
+            if (codRecargo != null && baseRecargo.signum() > 0 && tasa.signum() > 0) {
+                recargo = baseRecargo.multiply(tasa).divide(CIEN, 2, RoundingMode.HALF_UP);
+                c.agregarItem(item(codRecargo, codRecargo.getDescripcion() + " (" + tasa.stripTrailingZeros().toPlainString().replace('.', ',')
+                        + "% s/ " + MONEDA.format(baseRecargo) + " de cuotas vencidas)", 1, recargo));
                 conRecargo++;
             }
 
@@ -211,6 +214,24 @@ public class GeneracionCuotasService {
         }
         return new ResultadoGeneracion(per, fechaEmision, vencimiento, simulacion, propuestas.size(), omitidos, conRecargo,
                 totalCuotas, totalCoseguros, totalRecargos, totalGeneral, advertencias, propuestas);
+    }
+
+    /**
+     * Valor de las cuotas vencidas sobre el que se calcula el recargo: de cada comprobante vencido, su saldo sin
+     * contar los recargos que ya tenía. Si hubo pagos parciales, se considera que cancelaron primero el recargo.
+     */
+    static BigDecimal baseRecargo(List<Comprobante> vencidos) {
+        BigDecimal base = BigDecimal.ZERO;
+        for (Comprobante v : vencidos) {
+            if (v.esNotaCredito()) {
+                continue;
+            }
+            BigDecimal recargosPrevios = v.getItems().stream()
+                    .filter(i -> "RECARGO".equals(i.getCodigoServicio().getTipo()))
+                    .map(ComprobanteItem::getImporte).reduce(BigDecimal.ZERO, BigDecimal::add);
+            base = base.add(v.getSaldo().min(v.getTotal().subtract(recargosPrevios)).max(BigDecimal.ZERO));
+        }
+        return base;
     }
 
     private static ComprobanteItem item(CodigoServicio cod, String descripcion, int cantidad, BigDecimal precio) {

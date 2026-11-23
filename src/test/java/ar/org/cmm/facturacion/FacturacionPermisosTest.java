@@ -66,6 +66,7 @@ class FacturacionPermisosTest {
         mvc.perform(get("/api/facturacion/asientos/formato").session(ingresar("gisela")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.formato.separador").value(";"))
-                .andExpect(jsonPath("$.ejemplo").value(org.hamcrest.Matchers.startsWith("nro_asiento;fecha;cuenta;debe;haber")));
+                .andExpect(jsonPath("$.ejemplo").value(org.hamcrest.Matchers.startsWith("lote;nro_asiento;fecha;cuenta;debe;haber;concepto;referencia\n6;1;01/11/2026")))
+                .andExpect(jsonPath("$.lotes['NOTA_CREDITO.B']").value("8"));;
     }
 }

@@ -143,8 +143,9 @@ public class FacturacionController {
 
     @GetMapping("/asientos/exportar")
     public ResponseEntity<byte[]> exportarAsientos(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
-        ExportacionAsientosService.Exportacion e = exportacion.exportar(desde, hasta);
+                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+                                                   @RequestParam(required = false) String lote) {
+        ExportacionAsientosService.Exportacion e = exportacion.exportar(desde, hasta, lote);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(e.nombreArchivo()).build().toString())
                 .header("X-Asientos", String.valueOf(e.asientos()))
