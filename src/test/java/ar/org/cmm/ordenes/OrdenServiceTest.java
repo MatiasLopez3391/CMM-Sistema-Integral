@@ -7,6 +7,7 @@ import ar.org.cmm.contratos.AfiliadoConsulta;
 import ar.org.cmm.contratos.BloqueoServicio;
 import ar.org.cmm.contratos.CargoCuotaServicio;
 import ar.org.cmm.contratos.CoseguroServicio;
+import ar.org.cmm.contratos.ParametroConsulta;
 import ar.org.cmm.contratos.PracticaConsulta;
 import ar.org.cmm.contratos.PrestadorConsulta;
 
@@ -57,6 +58,9 @@ class OrdenServiceTest {
     private NumeradorService numerador;
 
     @Mock
+    private ParametroConsulta parametros;
+
+    @Mock
     private UsuarioActualProvider usuarioActual;
 
     @InjectMocks
@@ -79,6 +83,10 @@ class OrdenServiceTest {
                 "MEDICO", true
             )
         );
+
+        // Parámetros con su valor por defecto (tope 3 órdenes por mes, vencimiento a 1 mes)
+        lenient().when(parametros.entero(anyString(), anyInt()))
+                .thenAnswer(i -> i.getArgument(1));
 
         lenient().when(usuarioActual.usuario())
             .thenReturn("daniela");
@@ -178,7 +186,7 @@ class OrdenServiceTest {
             .thenReturn(true);
 
         assertThrows(
-            IllegalArgumentException.class,
+            ar.org.cmm.comun.ReglaNegocioException.class,
             () -> ordenService.emitir(solicitud())
         );
 

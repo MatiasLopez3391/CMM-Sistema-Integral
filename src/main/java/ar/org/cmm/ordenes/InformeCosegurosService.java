@@ -47,13 +47,13 @@ public class InformeCosegurosService {
             Long afiliadoId) {
 
         if (desde == null || hasta == null) {
-            throw new IllegalArgumentException(
+            throw new ar.org.cmm.comun.ReglaNegocioException(
                     "Debe indicar las fechas desde y hasta"
             );
         }
 
         if (desde.isAfter(hasta)) {
-            throw new IllegalArgumentException(
+            throw new ar.org.cmm.comun.ReglaNegocioException(
                     "La fecha desde no puede ser posterior a hasta"
             );
         }

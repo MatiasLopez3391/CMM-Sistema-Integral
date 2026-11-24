@@ -116,7 +116,7 @@ class AuditoriaMedicaIntegracionTest {
     }
 
     @Test
-    void debeRechazarOrdenYAnularCoseguro() {
+    void debeRechazarOrdenSinGenerarCoseguro() {
 
         var orden = emitirPendiente();
 
@@ -143,16 +143,12 @@ class AuditoriaMedicaIntegracionTest {
         assertEquals("RECHAZADA",
                 historial.get(1).getEstadoNuevo());
 
-        // Si existe un coseguro, F3 debe anularlo.
-        if (orden.totalCoseguro().signum() > 0) {
-            var cargo = cargoRepository
-                    .findByOrigenAndOrigenRef(
-                            "ORDEN", orden.numero()
-                    )
-                    .orElseThrow();
-
-            assertEquals("ANULADO", cargo.getEstado().toString());
-        }
+        // Una orden pendiente no genera coseguro: al rechazarla no queda ningún cargo en F3.
+        assertTrue(
+                cargoRepository
+                        .findByOrigenAndOrigenRef("ORDEN", orden.numero())
+                        .isEmpty()
+        );
     }
 
     @Test
@@ -167,7 +163,7 @@ class AuditoriaMedicaIntegracionTest {
         );
 
         assertThrows(
-                IllegalArgumentException.class,
+                ar.org.cmm.comun.ReglaNegocioException.class,
                 () -> auditoriaService.decidir(
                         orden.id(),
                         "RECHAZADA",

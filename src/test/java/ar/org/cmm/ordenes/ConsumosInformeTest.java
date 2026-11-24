@@ -166,6 +166,6 @@ class ConsumosInformeTest {
                 LocalDate.of(2026, 11, 1),
                 null
         ))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(ar.org.cmm.comun.ReglaNegocioException.class);
     }
 }

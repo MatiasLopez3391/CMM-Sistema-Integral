@@ -9,6 +9,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,6 +57,25 @@ public class Orden extends Auditable {
     @Column(name = "emitida_por", nullable = false, length = 100)
     private String emitidaPor;
 
+    /** Por qué fue a auditoría: práctica que lo requiere, tope mensual o pedido del médico. */
+    @Column(name = "motivo_auditoria", length = 300)
+    private String motivoAuditoria;
+
+    @Column(name = "medico_solicitante", length = 150)
+    private String medicoSolicitante;
+
+    @Column(length = 1000)
+    private String observaciones;
+
+    /** Vacía mientras la orden está en auditoría. */
+    @Column(name = "fecha_vencimiento")
+    private LocalDate fechaVencimiento;
+
+    /** Última decisión del auditor (o anulación): con este dato se avisa a Mesa de Entradas. */
+    @Column(name = "fecha_resolucion")
+    private LocalDateTime fechaResolucion;
+
+    @OrderBy("id")
     @OneToMany(
             mappedBy = "orden",
             cascade = CascadeType.ALL,

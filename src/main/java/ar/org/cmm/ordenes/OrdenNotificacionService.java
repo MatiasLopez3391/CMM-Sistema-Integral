@@ -42,29 +42,42 @@ public class OrdenNotificacionService {
     }
 
     public void notificarDecision(Orden orden) {
+        notificarDecision(orden, null, java.util.List.of());
+    }
+
+    /** Avisa al afiliado el resultado de la auditoría, con el motivo y lo que cambió (M9). */
+    public void notificarDecision(Orden orden, String motivo, java.util.List<String> cambios) {
 
         var afiliado = afiliados.obtener(orden.getAfiliadoId());
 
         Notificacion n = new Notificacion();
-
         n.setAfiliadoId(orden.getAfiliadoId());
         n.setDestinatario(afiliado.email());
         n.setTipo("AUDITORIA_ORDEN");
         n.setFechaCreacion(LocalDateTime.now());
 
-        n.setAsunto(
-                "Resultado de auditoria medica - " + orden.getNumero()
-        );
-
-        n.setCuerpo(
-                "Estimado/a " + afiliado.apellidoNombre() + ":\n\n"
-                + "Le informamos que su orden medica "
-                + orden.getNumero()
-                + " se encuentra en estado "
-                + orden.getEstado()
-                + ".\n\n"
-                + "CMM"
-        );
+        boolean rechazada = "RECHAZADA".equals(orden.getEstado());
+        boolean parcial = !rechazada && cambios != null && !cambios.isEmpty();
+        n.setAsunto("Resultado de la auditoría médica - Orden " + orden.getNumero());
+        StringBuilder cuerpo = new StringBuilder()
+                .append("Estimado/a ").append(afiliado.apellidoNombre()).append(":\n\n")
+                .append("El médico auditor revisó su orden ").append(orden.getNumero()).append(".\n")
+                .append("Resultado: ").append(orden.getEstado())
+                .append(parcial ? " (con cambios en lo solicitado)" : "").append(".\n");
+        if (parcial) {
+            cuerpo.append("\nCambios:\n");
+            cambios.forEach(c -> cuerpo.append("- ").append(c).append("\n"));
+        }
+        if (motivo != null && !motivo.isBlank()) {
+            cuerpo.append("\nMotivo: ").append(motivo.trim()).append("\n");
+        }
+        if (!rechazada && orden.getFechaVencimiento() != null) {
+            cuerpo.append("\nLa orden vence el ")
+                    .append(orden.getFechaVencimiento().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    .append(". Si no la usa, recuerde anularla en Mesa de Entradas: de lo contrario el coseguro se cobra igual en la cuota.\n");
+        }
+        cuerpo.append("\nAnte cualquier consulta, comuníquese con Mesa de Entradas.\n\nCírculo Médico de Mendoza");
+        n.setCuerpo(cuerpo.toString());
 
         if (afiliado.email() == null ||
                 afiliado.email().isBlank()) {

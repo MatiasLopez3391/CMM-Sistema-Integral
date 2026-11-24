@@ -170,7 +170,7 @@ class OrdenNotificacionIntegracionTest {
     void noDebeConsultarHistorialDeOrdenInexistente() {
 
         assertThrows(
-                IllegalArgumentException.class,
+                ar.org.cmm.comun.RecursoNoEncontradoException.class,
                 () -> consultaController.historial(-999L)
         );
     }

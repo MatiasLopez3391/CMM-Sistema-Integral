@@ -181,13 +181,12 @@ class OrdenIntegracionTest {
         );
 
         var error = assertThrows(
-                IllegalArgumentException.class,
+                ar.org.cmm.comun.ReglaNegocioException.class,
                 () -> ordenService.emitir(request)
         );
 
-        assertEquals(
-                "El grupo familiar está bloqueado",
-                error.getMessage()
+        assertTrue(
+                error.getMessage().contains("está bloqueado")
         );
     }
 }

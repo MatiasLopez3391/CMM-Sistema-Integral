@@ -26,8 +26,13 @@ public class OrdenItem {
     @Column(name = "practica_id", nullable = false)
     private Long practicaId;
 
+    /** Cantidad autorizada (0 si el auditor no autorizó la práctica). */
     @Column(nullable = false)
     private Integer cantidad;
+
+    /** Cantidad pedida al emitir; el auditor puede autorizar menos. */
+    @Column(name = "cantidad_solicitada")
+    private Integer cantidadSolicitada;
 
     @Column(name = "valor_convenido",
             nullable = false, precision = 15, scale = 2)
