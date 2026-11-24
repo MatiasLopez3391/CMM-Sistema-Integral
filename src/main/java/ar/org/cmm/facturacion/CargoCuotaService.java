@@ -70,10 +70,20 @@ public class CargoCuotaService implements CargoCuotaServicio {
 
     @Override
     @Transactional
-    public void anularCoseguro(String origenRef, String motivo) {
-        CargoCuota c = repo.findByOrigenAndOrigenRef(CargoCuota.ORIGEN_ORDEN, origenRef == null ? "" : origenRef.trim())
-                .orElseThrow(() -> new RecursoNoEncontradoException("Coseguro de la orden", origenRef));
+    public AnulacionCoseguro anularCoseguro(String origenRef, String motivo) {
+        var cargo = repo.findByOrigenAndOrigenRef(CargoCuota.ORIGEN_ORDEN, origenRef == null ? "" : origenRef.trim());
+        if (cargo.isEmpty()) {
+            return new AnulacionCoseguro(ResultadoAnulacion.SIN_CARGO, null);
+        }
+        CargoCuota c = cargo.get();
+        if (CargoCuota.FACTURADO.equals(c.getEstado())) {
+            return new AnulacionCoseguro(ResultadoAnulacion.YA_FACTURADO, c.getPeriodoDestino());
+        }
+        if (CargoCuota.ANULADO.equals(c.getEstado())) {
+            return new AnulacionCoseguro(ResultadoAnulacion.YA_ANULADO, c.getPeriodoDestino());
+        }
         anular(c, motivo);
+        return new AnulacionCoseguro(ResultadoAnulacion.ANULADO, c.getPeriodoDestino());
     }
 
     // ------------------------------------------------------------------ Carga manual (Liquidaciones)

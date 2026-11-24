@@ -3,6 +3,7 @@ package ar.org.cmm.facturacion;
 import ar.org.cmm.comun.AuditoriaService;
 import ar.org.cmm.comun.RecursoNoEncontradoException;
 import ar.org.cmm.comun.ReglaNegocioException;
+import ar.org.cmm.contratos.ParametroConsulta;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,7 +12,7 @@ import java.util.List;
 
 /** Parámetros de negocio editables desde pantalla (reemplazan valores fijos en el código). */
 @Service
-public class ParametroService {
+public class ParametroService implements ParametroConsulta {
 
     public static final String DIA_VENCIMIENTO = "cuota.dia_vencimiento";
     public static final String TASA_RECARGO = "mora.tasa_recargo_porcentaje";
@@ -29,6 +30,8 @@ public class ParametroService {
     public static final String EXPORT_DECIMAL = "contable.export.separador_decimal";
     public static final String EXPORT_ENCABEZADO = "contable.export.encabezado";
     public static final String EXPORT_EXTENSION = "contable.export.extension";
+    public static final String ORDENES_TOPE_MENSUAL = "ordenes.tope_mensual";
+    public static final String ORDENES_MESES_VENCIMIENTO = "ordenes.meses_vencimiento";
 
     private final ParametroRepository repo;
     private final AuditoriaService auditoria;
@@ -61,6 +64,17 @@ public class ParametroService {
 
     public int entero(String clave) {
         return Integer.parseInt(texto(clave).trim());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int entero(String clave, int porDefecto) {
+        try {
+            String v = textoOpcional(clave).trim();
+            return v.isEmpty() ? porDefecto : Integer.parseInt(v);
+        } catch (NumberFormatException e) {
+            return porDefecto;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -97,6 +111,18 @@ public class ParametroService {
                     int d = Integer.parseInt(v);
                     if (d < 1 || d > 28) {
                         throw new ReglaNegocioException("El día de vencimiento debe estar entre 1 y 28.");
+                    }
+                }
+                case ORDENES_TOPE_MENSUAL -> {
+                    int t = Integer.parseInt(v);
+                    if (t < 1 || t > 31) {
+                        throw new ReglaNegocioException("El tope de órdenes por mes debe estar entre 1 y 31.");
+                    }
+                }
+                case ORDENES_MESES_VENCIMIENTO -> {
+                    int m = Integer.parseInt(v);
+                    if (m < 1 || m > 12) {
+                        throw new ReglaNegocioException("El vencimiento de la orden debe estar entre 1 y 12 meses.");
                     }
                 }
                 case TASA_RECARGO -> {

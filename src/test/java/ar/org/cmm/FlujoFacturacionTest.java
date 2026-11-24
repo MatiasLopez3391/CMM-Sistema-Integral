@@ -181,7 +181,10 @@ class FlujoFacturacionTest {
         assertThat(h.cargos()).filteredOn(c -> c.estado().equals("FACTURADO")).allSatisfy(c -> assertThat(c.comprobanteNumero()).startsWith("CI-"));
 
         // Ya facturado: no se puede anular (se corrige con nota de crédito)
-        assertThatThrownBy(() -> cargosContrato.anularCoseguro("ORD-0001", "error")).hasMessageContaining("nota de crédito");
+        assertThat(cargosContrato.anularCoseguro("ORD-0001", "error").resultado())
+                .isEqualTo(ar.org.cmm.contratos.CargoCuotaServicio.ResultadoAnulacion.YA_FACTURADO);
+        assertThat(cargosContrato.anularCoseguro("ORD-9999", "sin cargo").resultado())
+                .isEqualTo(ar.org.cmm.contratos.CargoCuotaServicio.ResultadoAnulacion.SIN_CARGO);
     }
 
     @Test
