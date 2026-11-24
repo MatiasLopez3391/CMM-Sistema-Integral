@@ -1,6 +1,7 @@
 import { api, fmt, tieneRol } from '../api.js';
 import { ACCESO_PESTANIAS, ACCIONES } from '../permisos.js';
 import { botonesDescarga, enlazarDescarga } from '../ui.js';
+import { tablaOrdenes, enlazarFilas } from './ordenes.js';
 import { html, raw, esc, $, $$, tabla, modal, datosForm, toast, error, opciones, badgeEstado, badgeBloqueado, cargando, conBoton } from '../ui.js';
 
 let estadoBusqueda = { q: '', estado: 'ACTIVO', planId: '', bloqueado: '', soloTitulares: false, pagina: 0 };
@@ -70,6 +71,7 @@ async function renderFicha(el, id, tab) {
   const activo = a.estado === 'ACTIVO';
   const puedeEditar = tieneRol(ACCIONES.editarAfiliado);
   const puedeBloquear = tieneRol(ACCIONES.bloquearAfiliado);
+  const puedeEmitirOrden = tieneRol(ACCIONES.emitirOrden);
   el.innerHTML = html`
     <p><a href="#/afiliados">← Volver al listado</a></p>
     ${raw(a.bloqueado ? `<div class="cinta error"><b>Grupo familiar bloqueado</b>${a.ultimaMarcaBloqueo ? ' · ' + esc(a.ultimaMarcaBloqueo) : ''}. Sigue activo en la obra social pero no puede pedir órdenes.</div>` : '')}
@@ -82,6 +84,7 @@ async function renderFicha(el, id, tab) {
           <div class="suave"><span class="mono">${a.nroAfiliado}</span> · ${a.parentesco}${raw(a.titularNombre ? ` de <a href="#/afiliados/${a.titularId}">${esc(a.titularNombre)}</a>` : '')} · Plan ${a.planCodigo} ${a.planNombre} (${fmt.pct(a.coberturaPorcentaje)})</div>
         </div>
         <div class="fila">
+          ${raw(activo && puedeEmitirOrden && !a.bloqueado ? `<a class="btn primario" href="#/ordenes/emitir/${a.id}">Emitir orden</a>` : '')}
           ${raw(activo && puedeEditar ? '<button class="btn" id="editar">Editar</button>' : '')}
           ${raw(activo && puedeEditar && esTitular ? '<button class="btn" id="integrante">+ Integrante</button>' : '')}
           ${raw(activo && puedeBloquear ? (a.bloqueado ? '<button class="btn" id="desbloquear">Desbloquear</button>' : '<button class="btn peligro" id="bloquear">Bloquear</button>') : '')}
@@ -91,7 +94,7 @@ async function renderFicha(el, id, tab) {
     </div>
     <div class="tarjeta">
       <div class="tabs" id="tabs">
-        ${raw(['datos:Datos', 'grupo:Grupo familiar', 'cuenta:Cuenta corriente', 'pagos:Pagos', 'hc:Historia clínica', 'bloqueos:Bloqueos', 'auditoria:Auditoría']
+        ${raw(['datos:Datos', 'grupo:Grupo familiar', 'cuenta:Cuenta corriente', 'pagos:Pagos', 'hc:Historia clínica', 'ordenes:Órdenes', 'bloqueos:Bloqueos', 'auditoria:Auditoría']
           .filter(x => { const roles = ACCESO_PESTANIAS[x.split(':')[0]]; return !roles || tieneRol(roles); })
           .map(x => { const [k, t] = x.split(':'); return `<button data-tab="${k}" class="${k === tab ? 'activo' : ''}">${t}</button>`; }).join(''))}
       </div>
@@ -106,7 +109,7 @@ async function renderFicha(el, id, tab) {
   $('#baja', el)?.addEventListener('click', () => dialogoBaja(a));
 
   const c = $('#contenidoTab', el);
-  const tabs = { datos: tabDatos, grupo: tabGrupo, cuenta: tabCuenta, pagos: tabPagos, hc: tabHistoria, bloqueos: tabBloqueos, auditoria: tabAuditoria };
+  const tabs = { datos: tabDatos, grupo: tabGrupo, cuenta: tabCuenta, pagos: tabPagos, hc: tabHistoria, ordenes: tabOrdenes, bloqueos: tabBloqueos, auditoria: tabAuditoria };
   try { await (tabs[tab] || tabDatos)(c, a, titularId); } catch (e) { error(e); }
 }
 
@@ -207,6 +210,14 @@ async function tabPagos(c, a) {
     { t: 'Importe', cls: 'num', v: p => fmt.moneda(p.importe) },
     { t: 'Comprobante', v: p => p.tieneAdjunto ? `<a href="/api/cobranza/pagos/${p.id}/comprobante" target="_blank">${esc(p.adjuntoNombre)}</a>` : '<span class="suave">archivo del ente</span>' }
   ], pagos, { vacio: 'No hay pagos registrados.' });
+}
+
+// Órdenes del afiliado (F5): van en una pestaña aparte de la historia clínica (observación del CMM).
+async function tabOrdenes(c, a) {
+  const lista = await api.get('/api/ordenes', { afiliadoId: a.id });
+  c.innerHTML = `<p class="ayuda">Órdenes emitidas a ${esc(a.apellido)}, ${esc(a.nombre)}. Haga clic en una para ver el detalle.</p>
+    <div id="listaOrdenes">${tablaOrdenes(lista, 'El afiliado no tiene órdenes.', { conAfiliado: false })}</div>`;
+  enlazarFilas($('#listaOrdenes', c), lista, () => tabOrdenes(c, a));
 }
 
 async function tabHistoria(c, a) {

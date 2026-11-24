@@ -1,4 +1,5 @@
-import { api, fmt } from '../api.js';
+import { api, fmt, tieneRol } from '../api.js';
+import { ACCESO_PANTALLAS, ACCIONES } from '../permisos.js';
 import { html, raw, cargando } from '../ui.js';
 
 export async function render(el) {
@@ -37,12 +38,20 @@ export async function render(el) {
     </div>
     <div class="tarjeta">
       <h2>Accesos rápidos</h2>
-      <div class="fila">
-        <a class="btn" href="#/afiliados">Buscar afiliado</a>
-        <a class="btn" href="#/cuotas/generar">Generar cuotas</a>
-        <a class="btn" href="#/cobranza/ventanilla">Pago en ventanilla</a>
-        <a class="btn" href="#/cobranza">Importar archivo de cobro</a>
-        <a class="btn" href="#/morosos">Ver morosos</a>
-      </div>
+      <div class="fila">${raw(accesosRapidos())}</div>
     </div>`;
+}
+
+// Solo los accesos a pantallas que el usuario puede abrir.
+function accesosRapidos() {
+  const puede = pantalla => !ACCESO_PANTALLAS[pantalla] || tieneRol(ACCESO_PANTALLAS[pantalla]);
+  return [
+    ['#/afiliados', 'Buscar afiliado', puede('afiliados')],
+    ['#/ordenes/emitir', 'Emitir orden', tieneRol(ACCIONES.emitirOrden)],
+    ['#/auditoria', 'Órdenes pendientes de auditoría', puede('auditoria')],
+    ['#/cuotas/generar', 'Generar cuotas', puede('cuotas')],
+    ['#/cobranza/ventanilla', 'Pago en ventanilla', puede('cobranza')],
+    ['#/cobranza', 'Importar archivo de cobro', puede('cobranza')],
+    ['#/morosos', 'Ver morosos', puede('morosos')]
+  ].filter(([, , ok]) => ok).map(([h, t]) => `<a class="btn" href="${h}">${t}</a>`).join('');
 }
