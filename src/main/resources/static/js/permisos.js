@@ -11,6 +11,9 @@ export const ACCESO_PANTALLAS = {
   cobranza: ['LIQUIDACIONES', 'ADMINISTRACION'],
   morosos: ['LIQUIDACIONES', 'ADMINISTRACION'],
   contabilidad: ['LIQUIDACIONES', 'ADMINISTRACION'],
+  // Órdenes: Mesa de Entradas emite y anula; Liquidaciones y Administración consultan. El auditor tiene su buzón.
+  ordenes: ['MESA_ENTRADAS', 'ADMINISTRACION', 'LIQUIDACIONES'],
+  auditoria: ['MEDICO_AUDITOR'],
   configuracion: ['LIQUIDACIONES', 'ADMINISTRACION']
 };
 
@@ -22,6 +25,7 @@ export const ACCESO_PESTANIAS = {
   cuenta: ['LIQUIDACIONES', 'ADMINISTRACION'],
   pagos: ['LIQUIDACIONES', 'ADMINISTRACION'],
   hc: null, // la ven todos; cargar entradas es otra acción (ver ACCIONES)
+  ordenes: ['MESA_ENTRADAS', 'ADMINISTRACION', 'LIQUIDACIONES', 'MEDICO_AUDITOR'],
   auditoria: ['ADMINISTRACION', 'IT', 'MEDICO_AUDITOR']
 };
 
@@ -30,5 +34,6 @@ export const ACCIONES = {
   editarAfiliado: ['ADMINISTRACION', 'LIQUIDACIONES', 'MESA_ENTRADAS'], // alta, modificación, integrantes y baja
   bloquearAfiliado: ['ADMINISTRACION', 'LIQUIDACIONES'],
   cargarHistoriaClinica: ['MESA_ENTRADAS'],
+  emitirOrden: ['MESA_ENTRADAS'],
   editarCobertura: ['ADMINISTRACION', 'LIQUIDACIONES', 'IT'] // planes, derivadoras, prestadores, prácticas y valores
 };

@@ -1,7 +1,7 @@
 // Enrutador de la aplicación (hash). Cada vista es un módulo con export function render(contenedor, parametros).
-import { consultarSesion, ingresar, salir, sesion, tieneRol } from './api.js';
+import { api, consultarSesion, ingresar, salir, sesion, tieneRol } from './api.js';
 import { ACCESO_PANTALLAS } from './permisos.js';
-import { error } from './ui.js';
+import { error, toast } from './ui.js';
 
 const RUTAS = {
   inicio: { titulo: 'Inicio', modulo: './vistas/inicio.js' },
@@ -13,6 +13,8 @@ const RUTAS = {
   cobranza: { titulo: 'Cobranza', modulo: './vistas/cobranza.js' },
   morosos: { titulo: 'Morosos', modulo: './vistas/morosos.js' },
   contabilidad: { titulo: 'Exportación a sistema contable', modulo: './vistas/contabilidad.js' },
+  ordenes: { titulo: 'Órdenes', modulo: './vistas/ordenes.js' },
+  auditoria: { titulo: 'Auditoría médica', modulo: './vistas/auditoria.js' },
   configuracion: { titulo: 'Configuración', modulo: './vistas/configuracion.js' }
 };
 
@@ -46,6 +48,51 @@ async function navegar() {
   window.scrollTo(0, 0);
 }
 
+// ---------- Aviso a Mesa de Entradas de las órdenes que resolvió la auditoría (T30)
+// Cada minuto pregunta qué órdenes se resolvieron desde el último aviso; muestra un mensaje y un contador en el menú.
+const ROLES_AVISO = ['MESA_ENTRADAS', 'ADMINISTRACION'];
+const AVISOS_CADA_MS = 60000;
+let avisoTimer = null;
+let avisoDesde = null;
+let avisosSinVer = 0;
+const ahoraLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().substring(0, 19);
+
+function marcarMenuOrdenes() {
+  const a = document.querySelector('#menu a[data-ruta="ordenes"]');
+  if (!a) return;
+  a.querySelector('.badge')?.remove();
+  if (avisosSinVer > 0) a.insertAdjacentHTML('beforeend', ` <span class="badge error" title="Órdenes resueltas por auditoría">${avisosSinVer}</span>`);
+}
+
+async function consultarAvisos() {
+  if (!sesion() || !tieneRol(ROLES_AVISO)) return;
+  try {
+    const avisos = await api.get('/api/ordenes/avisos', { desde: avisoDesde });
+    if (!avisos.length) return;
+    avisoDesde = avisos[avisos.length - 1].fechaResolucion; // hora del servidor: no depende del reloj de la PC
+    avisos.forEach(a => toast(`Orden ${a.numero} (${a.afiliado}): ${a.estado === 'AUTORIZADA' ? 'autorizada' : 'rechazada'} por auditoría`,
+      a.estado === 'AUTORIZADA' ? 'ok' : ''));
+    avisosSinVer += avisos.length;
+    marcarMenuOrdenes();
+  } catch (e) { /* sin conexión: se reintenta en el próximo minuto */ }
+}
+
+function iniciarAvisos() {
+  detenerAvisos();
+  if (!tieneRol(ROLES_AVISO)) return;
+  avisoDesde = ahoraLocal();
+  avisoTimer = setInterval(consultarAvisos, AVISOS_CADA_MS);
+}
+
+function detenerAvisos() {
+  clearInterval(avisoTimer);
+  avisoTimer = null;
+  avisosSinVer = 0;
+  marcarMenuOrdenes();
+}
+
+window.addEventListener('cmm:avisos-vistos', () => { avisosSinVer = 0; marcarMenuOrdenes(); });
+
 // ---------- Sesión (T36)
 const $login = document.getElementById('login');
 const $layout = document.getElementById('layout');
@@ -66,6 +113,7 @@ document.getElementById('btnVerClave').addEventListener('click', () => {
 });
 
 function mostrarLogin(mensaje) {
+  detenerAvisos();
   $layout.hidden = true;
   $login.hidden = false;
   $loginError.hidden = !mensaje;
@@ -87,6 +135,7 @@ function mostrarApp() {
     while (sig && !sig.classList.contains('menu-grupo')) { if (!sig.hidden) visible = true; sig = sig.nextElementSibling; }
     g.hidden = !visible;
   });
+  iniciarAvisos();
   navegar();
 }
 
